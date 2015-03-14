@@ -1,0 +1,9 @@
+Originally I wanted to approach the problem of protein folding by investigating the asymptotic ($t\rightarrow\infty$) behaviour of the probability density function of a given protein. As the changes over time of a given protein\footnote{understood as a single point in high dimensional space} can be modelled by a Langevin equation $\dot x = -\nabla U(x)+\beta\dot w$, the corresponding probability density function $p(t,x)$ is described by the forward Fokker-Planck equation $\frac{\partial p}{\partial t} = \tilde\beta \Delta p + \text{div}(p\nabla U)$ whose asymptotic behaviour has been investigated in \cite{Nadler2008}.
+
+However, there are (at least) two reasons why this does not work:
+\begin{itemize}
+	\item In order to get a meaningful low dimensional representation of the system, a considerable margin between two adjacent eigenvalues $\lambda_{k+1} \gg \lambda_k$ of the Fokker-Planck operator is needed and it can be shown that this roughly corresponds to having a potential function $U$ with $k$ local minima\footnote{c.f. \cite{Nadler2008}, p.9}. Taking these properties into consideration it seems futile to employ this method of dimensionality reduction as the potential function in the area of protein folding has thousands of local minima.
+	\item Even if solutions could be found explicitly in a reasonable amount of time the problem of finding and exact potential function $U$ still remains unsolved\footnote{c.f. \cite{Neumaier97}, p.14ff}. As we are working with approximations it does not seem to make any sense trying to study its asymptotic long-term behaviour.
+\end{itemize}
+
+As a result of above considerations my topic of this seminar was restricted to docking. In the special case of rigid docking both molecules are assumed to be in a metastable state which drastically cuts the the complexity of the state space.
