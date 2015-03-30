@@ -59,9 +59,9 @@ def gradVLJ(X1,Y1,Z1,X2,Y2,Z2,alpha,beta,gamma):
     for i in range(len(X)):
         for j in range(len(X)):
             if i>j:
-                rij2 = (X[i]-X[j])**2 + (Y[i]-Y[j])**2 + (Z[i]-Z[j])**2
-                irij2 = 1.0 / rij2
-                irij6 = irij2*irij2*irij2
+                rij2   = (X[i]-X[j])**2 + (Y[i]-Y[j])**2 + (Z[i]-Z[j])**2
+                irij2  = 1.0 / rij2
+                irij6  = irij2*irij2*irij2
                 irij12 = irij6*irij6
 
                 # dU/dx
@@ -69,4 +69,3 @@ def gradVLJ(X1,Y1,Z1,X2,Y2,Z2,alpha,beta,gamma):
                 #
                 #
                 #
-                

@@ -43,9 +43,9 @@ $$\left(\begin{array}{ccc}
 0 & \text{cos}\,\alpha_1 & -\text{sin}\,\alpha_1 \\
 0 & \text{sin}\,\alpha_1 &  \text{cos}\,\alpha_1 \end{array}\right)
 \left(\begin{array}{ccc}
-\text{cos}\,\gamma_1 & 0 & -\text{sin}\,\gamma_1 \\
+\text{cos}\,\beta_1 & 0 & -\text{sin}\,\beta_1 \\
 0 & 1 & 0\\
-\text{sin}\,\gamma_1 & 0 &  \text{cos}\,\gamma_1\end{array}\right)
+\text{sin}\,\beta_1 & 0 &  \text{cos}\,\beta_1\end{array}\right)
 \left(\begin{array}{ccc}
 \text{cos}\,\gamma_1 & -\text{sin}\,\gamma_1 & 0 \\
 \text{sin}\,\gamma_1 &  \text{cos}\,\gamma_1 & 0 \\
@@ -56,16 +56,16 @@ Now one can explicitly compute the partial derivatives $\frac{\partial \tilde V_
 
 As of now we can compute the potential $\tilde V_{LJ}(\mathbf X)$ for a given point $\mathbf X = (\mathbf x_1,\alpha_1,\beta_1,\gamma_1)$ in the state space and its gradient $\nabla \tilde V_{LJ}(\mathbf X)$ and that is all we need for algorithms like steepest descent (which would still require rescaling of the parameters as to avoid extensive zig-zagging) or diffusion maps.
 
-Furthermore, note that the computation of the potential and the gradient can be combined into one double loop, making it $O\left((n_1+n_2)^2\right)$.\footnote{although the computation of the gradient is likely to result in a big constant factor of operations}
+Furthermore, note that the computation of the potential and the gradient can be combined into one double loop, making\footnote{although the computation of the gradient is likely to result in a big constant factor of operations} it $O\left((n_1+n_2)^2\right)$.
 
 \subsection{Implications for Flexible Docking}
-Given the file formats' property of not storing information of covalent bonds I expect the problem of flexible docking (i.e. some (e.g. torsion) angles are considered to be free variables as well) to be much harder as the gradient can hardly be computed explicitly anymore and numerical methods of differentiation may be necessary.
-In order to make them work reasonably fast it is not only important to consider the potential function, but also the function computing the coordinates of the entire system, given a (small) change of some (torsion) angle.
+Given the file formats' property of not storing information of covalent bonds I expect the problem of flexible docking (i.e. some (e.g. torsion) angles $\{\Theta_i\}_{i=1}^m$ are considered to be free variables as well) to be much harder as the gradient can hardly be computed explicitly anymore and numerical methods of differentiation may be necessary.
+In order to make them work reasonably fast it is not only important to consider the potential function, but also the function computing the coordinates $\{a_j(\Theta_1,\dots,\Theta_m)\}_{j=1}^n$ of the entire system, given a (small) change of some (torsion) angle.
 However this is just (part of) the problem of protein folding and as such very likely to be very hard.
 
 Another problem is that $\tilde V_{LJ}^1(M_1)$ and $\tilde V_{LJ}^2(M_2)$ would not be constants anymore and thus a considerable amount of additional computation is necessary.
 
-Finite element methods are also less likely to be applicable as the number of the state space's dimensions increases when adding more free variables.
+Finite element methods are also less likely to be applicable as the number of the state space's dimensions increases when adding more free variables and thus the computational complexity increases exponentially as well (which has been termed ``curse of dimensionality'').
 
 
 
