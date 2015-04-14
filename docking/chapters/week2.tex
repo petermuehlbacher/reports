@@ -2,7 +2,21 @@
 Visit \url{http://zlab.umassmed.edu/benchmark/} for a benchmark on various docking problems that are ordered by difficulty. There are test cases for rigid docking as well as flexible docking, again ordered by amount of typically changing parameters like torsion angles.
 
 \subsection{PDB}
-The \textit{Protein Data Bank Format} is a plain text data file, storing (amongst other information) the coordinates of every single atom in a protein. As most other atomic coordinate files PDB does not specify covalent bonds between atoms unless the two atoms are not members of the \textit{Standard Residues}\footnote{For further information consult \url{http://www.wwpdb.org/documentation/file-format-content/format33/sect10.html} and \url{http://www.wwpdb.org/documentation/file-format-content/format33/sect4.html}.} in protein or nucleic acid chains. Typically, any two non-hydrogen atoms within 1.9 \AA ngstroms of each other are deemed to be covalently bonded. The distance for a bond involving a hydrogen atom is less.
+The \textit{Protein Data Bank Format} is a plain text data file, storing (amongst other information) the coordinates of every single atom in a protein.
+
+A typical \textit{PDB}-file's row might look like this:
+
+$$
+\text{ATOM} 
+\underbrace{2}_{\text{\begin{sideways}atom number\end{sideways}}}
+\underbrace{\dots}_{\text{\begin{sideways}various identifiers\footnote{These identifiers are not of importance for this project.}\end{sideways}}}
+\underbrace{57.827}_{\text{\begin{sideways}x-coordinate (\AA)\end{sideways}}}
+\underbrace{\dots}_{\text{\begin{sideways}y- and z-coordinates\end{sideways}}}
+\underbrace{1.00}_{\text{\begin{sideways}occupancy\footnote{In case an atom has been found in more than one locations all the different coordinates and according occupancies are listed—e.g. if it has been found in two different locations, both locations are represented as distinct rows with an occupancy factor of 0.5 each.}\end{sideways}}}
+\underbrace{66.32}_{\text{\begin{sideways}temperature factor\footnote{The temperature factor is an indication of how rigidly the atom is held in place in the given structure. Lower values imply that it is a more ``stable'' position.}\end{sideways}}}
+\underbrace{\text{N}}_{\text{\begin{sideways}element symbol\end{sideways}}}
+$$
+\todo{why aren't footnotes showing?}
 
 For a list of PDB files for various proteins visit \url{http://www.rcsb.org/}.
 
@@ -12,7 +26,7 @@ Given two metastable molecules $M_i=(\mathbf{x_i},\alpha_i,\beta_i,\gamma_i,\{\m
 The Lennard-Jones potential of a system consisting of two points $\mathbf{a,b}\in\mathbb R^3$ with distance $r^2=||a-b||$ is defined as
 
 \begin{equation}\label{LennardJones}
-	V_{LJ}(r) = \varepsilon \left(\left(\frac{\sigma}{r}\right)^{12} - 2 \left(\frac{\sigma}{r}\right)^6\right)
+	V_{LJ}(r) = \varepsilon \left(\left(\frac{\sigma}{r}\right)^{12} - 2 \left(\frac{\sigma}{r}\right)^6\right),
 \end{equation}
 
 where $\varepsilon$ is the size of the potential well and $\sigma$ the distance at which the potential reaches its minimum. Both are usually given by experiments.
@@ -38,35 +52,22 @@ To calculate the gradient it thus suffices to inspect $\tilde V_{LJ}^3$ as a fun
 
 where $r_{ij}^2 = \|\tilde a_{1i}-a_{2j}\|$ and $\tilde a_{1i}$ are the first system's $i$th particle's absolute coordinates given by
 
-$$\left(\begin{array}{ccc}
+$$R_x(\alpha_1)R_y(\beta_1)R_z(\gamma_1)\mathbf a_{1i} + \mathbf x_1,$$ where $$R_x(\alpha_1) = \left(\begin{array}{ccc}
 1 & 0 & 0 \\
 0 & \text{cos}\,\alpha_1 & -\text{sin}\,\alpha_1 \\
-0 & \text{sin}\,\alpha_1 &  \text{cos}\,\alpha_1 \end{array}\right)
-\left(\begin{array}{ccc}
+0 & \text{sin}\,\alpha_1 &  \text{cos}\,\alpha_1 \end{array}\right),$$ $$R_y(\beta_1)=\left(\begin{array}{ccc}
 \text{cos}\,\beta_1 & 0 & -\text{sin}\,\beta_1 \\
 0 & 1 & 0\\
-\text{sin}\,\beta_1 & 0 &  \text{cos}\,\beta_1\end{array}\right)
-\left(\begin{array}{ccc}
+\text{sin}\,\beta_1 & 0 &  \text{cos}\,\beta_1\end{array}\right)$$ and $$R_z(\gamma_1) = \left(\begin{array}{ccc}
 \text{cos}\,\gamma_1 & -\text{sin}\,\gamma_1 & 0 \\
 \text{sin}\,\gamma_1 &  \text{cos}\,\gamma_1 & 0 \\
-0 & 0 & 1 \end{array}\right)
-\mathbf a_{1i} + \mathbf x_1$$.
+0 & 0 & 1 \end{array}\right).$$
 
 Now one can explicitly compute the partial derivatives $\frac{\partial \tilde V_{LJ}}{\partial p} = \frac{\partial \tilde V_{LJ}^3}{\partial p}$, for $p$ being one of the parameters.
 
 As of now we can compute the potential $\tilde V_{LJ}(\mathbf X)$ for a given point $\mathbf X = (\mathbf x_1,\alpha_1,\beta_1,\gamma_1)$ in the state space and its gradient $\nabla \tilde V_{LJ}(\mathbf X)$ and that is all we need for algorithms like steepest descent (which would still require rescaling of the parameters as to avoid extensive zig-zagging) or diffusion maps.
 
 Furthermore, note that the computation of the potential and the gradient can be combined into one double loop, making\footnote{although the computation of the gradient is likely to result in a big constant factor of operations} it $O\left((n_1+n_2)^2\right)$.
-
-\subsection{Implications for Flexible Docking}
-Given the file formats' property of not storing information of covalent bonds I expect the problem of flexible docking (i.e. some (e.g. torsion) angles $\{\Theta_i\}_{i=1}^m$ are considered to be free variables as well) to be much harder as the gradient can hardly be computed explicitly anymore and numerical methods of differentiation may be necessary.
-In order to make them work reasonably fast it is not only important to consider the potential function, but also the function computing the coordinates $\{a_j(\Theta_1,\dots,\Theta_m)\}_{j=1}^n$ of the entire system, given a (small) change of some (torsion) angle.
-However this is just (part of) the problem of protein folding and as such very likely to be very hard.
-
-Another problem is that $\tilde V_{LJ}^1(M_1)$ and $\tilde V_{LJ}^2(M_2)$ would not be constants anymore and thus a considerable amount of additional computation is necessary.
-
-Finite element methods are also less likely to be applicable as the number of the state space's dimensions increases when adding more free variables and thus the computational complexity increases exponentially as well (which has been termed ``curse of dimensionality'').
-
 
 
 
