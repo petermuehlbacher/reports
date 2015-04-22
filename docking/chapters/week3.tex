@@ -1,10 +1,11 @@
 \subsection{Ordering Dihedral Angles by Variance}
 To be able to approximate the real docking process as closely as possible while only letting some chosen dihedral angles be variable, one first needs to order them accordingly. One such order might be given by regarding each such angle $\Theta_i$ as a discrete random variable and ordering them by their variances.
 
-More precisely, a set of a single molecule's uniformly distributed\footnote{This requirement is necessary because we do not want to count ``very similar'' conformations twice} conformations $\{M_k\}_{k=0}^n$ induces a discrete probability space $(\{M_k\}_{k=0}^n,\mathscr{A},P)$ where $P(M_k):=\frac{V_{LJ}(M_k)}{Z}$, where $Z:=\sum_{k=1}^n P(M_k)$ is a normalising factor and for all $A$ in $\mathscr{A}: P(A) = \sum_{M\in A}P(M)$. \todo{would it be more efficient to compute sample trajectories and just use them (regardless of their distribution) instead of uniformly distributed samples?}
+More precisely, a set of a single molecule's uniformly distributed\footnote{This requirement is necessary because we do not want to count ``very similar'' conformations twice.} conformations $\{M_k\}_{k=0}^n$ induces a discrete probability space $(\{M_k\}_{k=0}^n,\mathscr{A},P)$ where $P(M_k):=\frac{V_{LJ}(M_k)}{Z}$, where $Z:=\sum_{k=1}^n P(M_k)$ is a normalising factor and for all $A$ in $\mathscr{A}: P(A) = \sum_{M\in A}P(M)$. 
 
-For a fixed $\Theta_i$ we obtain the expected value $E[\Theta_i] = \sum_{k=1}^n P(M_k)\Theta_{ik}$, were $\Theta_{ik}$ is the $k$-th conformation's $i$-th dihedral angle.
-\todo{maybe assume that the angles' values are normally distributed and estimate parameters of the von Mises distribution}
+Another approach might be to compute sample trajectories and use them (regardless of their distribution) instead of uniformly distributed samples.
+
+For a fixed $\Theta_i$ we obtain the expected value $E[\Theta_i] = \sum_{k=1}^n P(M_k)\Theta_{ik}$, were $\Theta_{ik}$ is the $k$-th conformation's $i$-th dihedral angle. However, this approach does not consider the fact that these values are circularly distributed; thus it may be better to assume that the angles' values are normally distributed and to estimate the parameters of the von Mises distribution.
 
 The variance $\text{Var}[\Theta_i]$ is given by $E[(\Theta_i - E[\Theta_i])^2]$.
 

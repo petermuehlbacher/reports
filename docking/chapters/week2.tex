@@ -9,14 +9,19 @@ A typical \textit{PDB}-file's row might look like this:
 $$
 \text{ATOM} 
 \underbrace{2}_{\text{\begin{sideways}atom number\end{sideways}}}
-\underbrace{\dots}_{\text{\begin{sideways}various identifiers\footnote{These identifiers are not of importance for this project.}\end{sideways}}}
+\underbrace{\dots}_{\text{\begin{sideways}various identifiers (1)\end{sideways}}}
 \underbrace{57.827}_{\text{\begin{sideways}x-coordinate (\AA)\end{sideways}}}
 \underbrace{\dots}_{\text{\begin{sideways}y- and z-coordinates\end{sideways}}}
-\underbrace{1.00}_{\text{\begin{sideways}occupancy\footnote{In case an atom has been found in more than one locations all the different coordinates and according occupancies are listed—e.g. if it has been found in two different locations, both locations are represented as distinct rows with an occupancy factor of 0.5 each.}\end{sideways}}}
-\underbrace{66.32}_{\text{\begin{sideways}temperature factor\footnote{The temperature factor is an indication of how rigidly the atom is held in place in the given structure. Lower values imply that it is a more ``stable'' position.}\end{sideways}}}
+\underbrace{1.00}_{\text{\begin{sideways}occupancy (2)\end{sideways}}}
+\underbrace{66.32}_{\text{\begin{sideways}temperature factor (3)\end{sideways}}}
 \underbrace{\text{N}}_{\text{\begin{sideways}element symbol\end{sideways}}}
 $$
-\todo{why aren't footnotes showing?}
+
+\begin{enumerate}
+	\item These identifiers are not of importance for this project.
+	\item In case an atom has been found in more than one locations all the different coordinates and according occupancies are listed—e.g. if it has been found in two different locations, both locations are represented as distinct rows with an occupancy factor of 0.5 each.
+	\item The temperature factor is an indication of how rigidly the atom is held in place in the given structure. Lower values imply that it is a more ``stable'' position.
+\end{enumerate}
 
 For a list of PDB files for various proteins visit \url{http://www.rcsb.org/}.
 
@@ -47,7 +52,7 @@ To calculate the gradient it thus suffices to inspect $\tilde V_{LJ}^3$ as a fun
 \begin{equation}
 	\tilde V_{LJ}^3(\mathbf x_1,\alpha_1,\beta_1,\gamma_1) = \varepsilon 
 	\sum_{i=1}^{n_1}\sum_{j=1}^{n_2}\left(\frac{\sigma}{r_{ij}}\right)^{12} 
-	- 2 \left(\frac{\sigma}{r_{ij}}\right)^6
+	- 2 \left(\frac{\sigma}{r_{ij}}\right)^6,
 \end{equation}
 
 where $r_{ij}^2 = \|\tilde a_{1i}-a_{2j}\|$ and $\tilde a_{1i}$ are the first system's $i$th particle's absolute coordinates given by

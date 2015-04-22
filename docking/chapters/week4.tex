@@ -1,0 +1,8 @@
+\subsection{Ordering Dihedral Angles by Variance (continued)}
+A solution that is better suited for this problem only considers the current configuration.
+Thus it suffices to consider the given configuration\footnote{All other parameters are assumed to be fixed.} $C=(\Theta_i)_{i=1}^n$, calculate its potential energy $V_{LJ}(C)$ and then, for every dihedral angle $\Theta_i$, evaluate the difference $\Delta_i^\varepsilon := V_{LJ}(C) - V_{LJ}(C_i^\varepsilon)$, where $C_i^\varepsilon$ is the configuration $(\Theta_1,\dots,\Theta_{i-1},\Theta_i + \varepsilon,\Theta_{i+1},\dots,\Theta_n)$.
+
+To get an ordering of the dihedral angles' variance we set $k<_\varepsilon j$ if $\Delta_k^\varepsilon + \Delta_k^{-\varepsilon} < \Delta_j^\varepsilon + \Delta_j^{-\varepsilon}$ which clearly defines an absolute order for every $\varepsilon$.
+
+\subsection{Building the Molecule}
+When trying to calculate the Cartesian coordinates I could not find any information on how to interpret the angles $\Theta_i$ and $\alpha,\beta,\dots$ that are chosen such that $\Theta_i,\alpha,\beta,\dots < \pi$ which does not uniquely determine the coordinates.
