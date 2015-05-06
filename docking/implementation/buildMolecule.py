@@ -41,25 +41,24 @@ def buildMolecule(S,alpha,beta,node):
     # (same for R_beta, just with the XZ-plane)
 
 
-def buildChildren(node,A,B):
+def buildChildren(parent,A,B):
     """
     A recursive method to traverse a tree-like structure and apply the NeRF
     algorithm to every child. Also adds the calculated coordinates to the
     `molecule` list.
 
     Args:
-      node(Node):    an instance of the point one wants to calculate the
+      parent(Node):  an instance of the point one wants to calculate the
                      childrens' absolute coordinates of
       A,B(double[]): absolute coordinates of the two previous points
                      (ancestor and ancestor of the ancestor)
     """
-    C = node.coord
-    for child in node.children:
-        child.coord = nerf(A,B,C,child.dist,child.theta,child.phi,node.dist)
+    C = parent.coord
+    for child in parent.children:
+        child.coord = nerf(A,B,C,child.dist,child.theta,child.phi,parent.dist)
         molecule.append(child.coord)
 
-        for grandchild in child.children:
-            buildChildren(child,B,C)
+        buildChildren(child,B,C)
 
 def nerf(A,B,C,R,theta,phi,lbc=""):
     """
