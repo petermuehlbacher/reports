@@ -2,6 +2,11 @@ import numpy as np
 import numpy.linalg as la
 import lennardjonespotential
 import buildMolecule
+import sys
+# need to increase maximal amount of recursions
+# i.e. children.children.[..].children
+# could save it another format, but then buildMolecule.py gets complicated
+sys.setrecursionlimit(10000)
 
 def load_atoms(pdb_file):
     """
@@ -52,17 +57,18 @@ def load_atoms(pdb_file):
 
                 # first N in this file
                 if not lastC:
-                    tree  = Node(coord,None,None,None,[])
+                    tree  = Node(atomname,coord,None,None,None,[])
                     lastN = tree
 
                 # new residue to append to lastC
                 else:
                     dist,phi,theta = calcInternalCoords([lastN,lastCA,lastC],coord)
-                    lastC.children[0] = Node(coord,dist,phi,theta,[])
+                    lastC.children.append(Node(atomname,coord,dist,phi,theta,[]))
+                    lastN = lastC.children[-1]
 
             elif atomname == " CA ":
                 dist,phi,theta = calcInternalCoords([lastCA,lastC,lastN],coord)
-                lastN.children.append(Node(coord,dist,phi,theta,[]))
+                lastN.children.append(Node(atomname,coord,dist,phi,theta,[]))
                 lastCA = lastN.children[-1]
 
                 # reset variables concerning the rest R
@@ -73,13 +79,11 @@ def load_atoms(pdb_file):
 
             elif atomname == " C  ":
                 dist,phi,theta = calcInternalCoords([lastC,lastN,lastCA],coord)
-                lastCA.children.append(Node(coord,dist,phi,theta,[]))
+                lastCA.children.append(Node(atomname,coord,dist,phi,theta,[]))
                 lastC = lastCA.children[-1]
             elif atomname == " O  ":
                 dist,phi,theta = calcInternalCoords([lastN,lastCA,lastC],coord)
-                # first child should always be the backbone
-                lastC.children.append(None)
-                lastC.children.append(Node(coord,dist,phi,theta,[]))
+                lastC.children.append(Node(atomname,coord,dist,phi,theta,[]))
 
             # if it's none of the above cases it's gotta be some rest R
             else:
@@ -90,13 +94,13 @@ def load_atoms(pdb_file):
                 # e.g. the CZ in (CB,CG,CD1,CD2,CE1,CE2,CZ)
                 if len(paths)>1 and branch == 0:
                     dist,phi,theta = calcInternalCoords(paths[lastbranch],coord)
-                    lastadded.children.append(Node(coord,dist,phi,theta,[]))
+                    lastadded.children.append(Node(atomname,coord,dist,phi,theta,[]))
 
                 # this branch already exists --> just append it
                 # e.g. the CG in (CD,CG) or the NE1 in (CD1,CD2,NE1,...)
                 elif len(paths) > branch:
                     dist,phi,theta = calcInternalCoords(paths[branch],coord)
-                    paths[branch][-1].children.append(Node(coord,dist,phi,theta,[]))
+                    paths[branch][-1].children.append(Node(atomname,coord,dist,phi,theta,[]))
                     # set the current path's last element to the children
                     # we just appended by appending it
                     paths[branch].append(paths[branch][-1].children[-1])
@@ -116,11 +120,11 @@ def load_atoms(pdb_file):
                         # e.g. (in the example above): take path 1 and cut off
                         # the CD1 - cutting of only the last element always
                         # works as the remoteness is equal to the last node's one
-                        paths[branch] = paths[lastbranch][0:-2]
+                        paths[branch] = paths[lastbranch][0:-1]
                         dist,phi,theta = calcInternalCoords(paths[branch],coord)
 
                         # add it to the internal list
-                        paths[branch].append(Node(coord,dist,phi,theta,[]))
+                        paths[branch].append(Node(atomname,coord,dist,phi,theta,[]))
                         # add it to the tree
                         paths[branch][-2].children.append(paths[branch][-1])
                         # update the lastadded internal variable
@@ -136,7 +140,7 @@ def load_atoms(pdb_file):
                         paths[branch] = paths[lastbranch]
                         dist,phi,theta = calcInternalCoords(paths[branch],coord)
                         # add it to the tree
-                        lastadded.children.append(Node(coord,dist,phi,theta,[]))
+                        lastadded.children.append(Node(atomname,coord,dist,phi,theta,[]))
                         # append the recently added element to the internal list
                         paths[branch].append(lastadded.children[-1])
                         # update the lastadded internal variable
