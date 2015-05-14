@@ -1,5 +1,3 @@
-import json
-
 class Node( object ):
     """
     Stores an atom's coordinates (internal and absolute), as well as its
@@ -25,9 +23,10 @@ class Node( object ):
     further assumptions. Of course their internal coordinates have to be chosen
     so that they do not conflict with the prescribed absolute coordinates (x,y,z).
     """
-    def __init__( self, coord, dist, phi, theta, children ):
+    def __init__( self, element, coord, dist, phi, theta, children ):
         """
         Args:
+          element(String):  atom name (e.g. " C  ", " CG1", etc.)
           coord(double[]):  coordinates of the node given as a list (e.g. [0,0,0])
                             (usually that's what we're calculating from the
                             other arguments, also called "internal coordinates")
@@ -39,9 +38,16 @@ class Node( object ):
 
         *..."this.parent" is only pseudo syntax, it's not actually implemented
         """
+        self.element                    = element
         self.coord                      = coord
         self.dist, self.phi, self.theta = dist, phi, theta
         self.children                   = children
 
-    def __str__(self):
-        return json.dumps(self, default=lambda o: o.__dict__)
+    def __repr__(self, level=0):
+        """
+        Recursive method for a better overview when printing a Node instance
+        """
+        ret = "|    "*level+repr(self.element)+"\n"
+        for child in self.children:
+            ret += child.__repr__(level+1)
+        return ret
