@@ -2,13 +2,19 @@ import lennardjonespotential
 import buildMolecule
 
 def load_atoms(pdb_file):
+    """
+    Reads a PDB file and converts the data to a tree-like structure.
+
+    Args:
+      pdb_file(String): path to the pdb file that should be parsed
+
+    Returns:
+      tree(Node):       tree-like structure representing the composition of
+                        the protein that's given by pdb_file; ignores H atoms
+    """
     f = open(pdb_file,'r')
     pdb = f.readlines()
     f.close()
-
-    lastresseqnr = 0
-    lastbranch = 0
-    lastremoteness = "A"
 
     # loop through every atom record
     for l in pdb:
@@ -21,65 +27,52 @@ def load_atoms(pdb_file):
             #        continue
 
             atomname   = l[12:15] # atom name         e.g. " CG1"," CA ", " O  "
-            element    = l[12:13] # chemical element  e.g. " C","NA"
+            # element  = l[12:13] # chemical element  e.g. " C","NA"
 
             remoteness = l[14:14] # remoteness indicator where A<B<G<D<E<Z<H
             branch     = l[15:15] # digit designating the branch direction;
                                   # left blank if the sidechain is unbranched
-            resseqnr   = l[22:26] # residue sequence number
             x          = l[30:37]
             y          = l[38:45]
             z          = l[46:53]
             coord      = [float(x),float(y),float(z)]
-            branch     = int(float(branch))
+            branch     = int(branch)
 
-            if not resseqnr == lastresseqnr: # new residue
-                if not lastC: # first N in this file
+            # new residue
+            if atomname == " N  ":
+
+                # first N in this file
+                if not lastC:
                     tree  = Node(coord,None,None,None,[])
                     lastN = tree
-                else: # new residue to append to lastC
-                    dist  = np.linalg.norm(lastC.coord - coord)
-                    phi   = angle(lastN - lastC, lastCA - lastC)
-                    theta = dihedralAngle(lastN.coord,lastCA.coord,lastC.coord,coord)
-                    lastC.children[0] = Node(coord,dist,phi,theta,[])
-                # if we are at a new residue, start by adding this N as a child
-                # to the last C
-            lastresseqnr = resseqnr
 
-            if atomname == " CA ":
-                dist  = np.linalg.norm(lastN.coord - coord)
-                # if there already was a C then that's not the first residue
-                if lastC:
-                    phi    = angle(lastC.coord,lastN.coord,coord)
-                    theta  = dihedralAngle(lastCA.coord,lastC.coord,lastN.coord,coord)
-                    lastN.children.append(Node(coord,dist,phi,theta,[]))
+                # new residue to append to lastC
                 else:
-                    lastN.children.append(Node(coord,dist,None,None,[]))
+                    dist,phi,theta = calcInternalCoords([lastN,lastCA,lastC],coord)
+                    lastC.children[0] = Node(coord,dist,phi,theta,[])
+
+            elif atomname == " CA ":
+                dist,phi,theta = calcInternalCoords([lastCA,lastC,lastN],coord)
+                lastN.children.append(Node(coord,dist,phi,theta,[]))
                 lastCA = lastN.children[-1]
 
-                # reset paths
-                if lastC:
-                    paths = [[lastC,lastN,lastCA]]
-                else:
-                    paths = [[lastN,lastCA]]
+                # reset variables concerning the rest R
+                paths = [[lastC,lastN,lastCA]]
                 lastadded = lastCA
+                lastbranch = 0
+                lastremoteness = "A"
+
             elif atomname == " C  ":
-                dist  = np.linalg.norm(lastCA.coord - coord)
-                phi   = angle(lastN.coord,lastCA.coord,coord)
-                if lastC:
-                    theta = dihedralAngle(lastC.coord,lastN.coord,lastCA.coord,coord)
-                    lastCA.children.append(Node(coord,dist,phi,theta,[]))
-                else:
-                    lastCA.children.append(Node(coord,dist,phi,None,[]))
+                dist,phi,theta = calcInternalCoords([lastC,lastN,lastCA],coord)
+                lastCA.children.append(Node(coord,dist,phi,theta,[]))
                 lastC = lastCA.children[-1]
             elif atomname == " O  ":
-                dist  = np.linalg.norm(lastC.coord - coord)
-                phi   = angle(lastCA.coord,lastC.coord,coord)
-                theta = dihedralAngle(lastN.coord,lastCA.coord,lastC.coord,coord)
+                dist,phi,theta = calcInternalCoords([lastN,lastCA,lastC],coord)
                 # first child should always be the backbone
-                lastC.children[1] = Node(coord,dist,phi,theta,[])
+                lastC.children.append(None)
+                lastC.children.append(Node(coord,dist,phi,theta,[]))
 
-            # if it's none of the above cases it's gotta be some rest
+            # if it's none of the above cases it's gotta be some rest R
             else:
 
                 # if branches have already been used, but for this atom none
@@ -87,28 +80,13 @@ def load_atoms(pdb_file):
                 # the any of the last ones (wlog to the last one)
                 # e.g. the CZ in (CB,CG,CD1,CD2,CE1,CE2,CZ)
                 if paths[1] and branch == 0:
-                    ####### CALCULATE STUFF #######
-                    dist  = np.linalg.norm(lastadded.coord - coord)
-                    lp    = paths[lastbranch]
-                    phi   = angle(lp[-2].coord,lp[-1].coord,coord)
-                    theta = dihedralAngle(lp[-3].coord,lp[-2].coord,lp[-1].coord,coord)
-                    ###############################
+                    dist,phi,theta = calcInternalCoords(paths[lastbranch],coord)
                     lastadded.children.append(Node(coord,dist,phi,theta,[]))
 
                 # this branch already exists --> just append it
                 # e.g. the CG in (CD,CG) or the NE1 in (CD1,CD2,NE1,...)
                 elif paths[branch]:
-                    ####### CALCULATE STUFF #######
-                    dist  = np.linalg.norm(lastadded.coord - coord)
-                    p     = paths[branch]
-                    phi   = angle(p[-2].coord,p[-1].coord,coord)
-                    # if this is not the CG of the first atom,
-                    # then there is a dihedral angle to calculate
-                    if p[-3]:
-                        theta = dihedralAngle(p[-3].coord,p[-2].coord,p[-1].coord,coord)
-                    else:
-                        theta = None
-                    ###############################
+                    dist,phi,theta = calcInternalCoords(paths[branch],coord)
                     paths[branch][-1].children.append(Node(coord,dist,phi,theta,[]))
                     # set the current path's last element to the children
                     # we just appended by appending it
@@ -128,13 +106,7 @@ def load_atoms(pdb_file):
                         # the CD1 - cutting of only the last element always
                         # works as the remoteness is equal to the last node's one
                         paths[branch] = paths[lastbranch][0:-2]
-
-                        ####### CALCULATE STUFF #######
-                        p     = paths[branch]
-                        dist  = np.linalg.norm(p[-1].coord - coord)
-                        phi   = angle(p[-2].coord,p[-1].coord,coord)
-                        theta = dihedralAngle(p[-3].coord,p[-2].coord,p[-1].coord,coord)
-                        ###############################
+                        dist,phi,theta = calcInternalCoords(paths[branch],coord)
 
                         # add it to the internal list
                         paths[branch].append(Node(coord,dist,phi,theta,[]))
@@ -149,14 +121,7 @@ def load_atoms(pdb_file):
                     else:
                         # copy the parent's path
                         paths[branch] = paths[lastbranch]
-
-                        ####### CALCULATE STUFF #######
-                        dist  = np.linalg.norm(lastadded.coord - coord)
-                        p     = paths[branch]
-                        phi   = angle(p[-2].coord,p[-1].coord,coord)
-                        theta = dihedralAngle(p[-3].coord,p[-2].coord,p[-1].coord,coord)
-                        ###############################
-
+                        dist,phi,theta = calcInternalCoords(paths[branch],coord)
                         # add it to the tree
                         lastadded.children.append(Node(coord,dist,phi,theta,[]))
                         # append the recently added element to the internal list
@@ -164,7 +129,7 @@ def load_atoms(pdb_file):
                         # update the lastadded internal variable
                         lastadded = paths[branch][-1]
 
-        lastbranch = branch
+        lastbranch     = branch
         lastremoteness = remoteness
 
     return tree
@@ -191,3 +156,34 @@ def dihedralAngle(A,B,C,D):
     cos = np.dot(p,r)/normpr
     sin = la.norm(np.cross(p,r))/normpr
     return np.arctan2(sin, cos)
+
+def calcInternalCoords(p,coord):
+    """
+    Calculates internal coordinates
+
+    Args:
+      coord(double[]):  coordinates of the current (=last) node given as a list
+      p(Node[]):        list of predecessors (e.g. [...,grandparent,parent])
+
+    Returns:
+      dist(double):     distance to the parent node (bond length)
+      phi(double):      bond angle between this, this.parent and this.parent.parent
+      theta(double):    dihedral angle between this, this.parent, this.parent.parent
+                        and this.parent.parent.parent*
+
+    *..."this.parent" is only pseudo syntax, it's not actually implemented
+    """
+    if p[-1]:
+        dist = np.linalg.norm(p[-1].coord - coord)
+        if p[-2]:
+            phi = angle(p[-2].coord,p[-1].coord,coord)
+            if p[-3]:
+                theta = dihedralAngle(p[-3].coord,p[-2].coord,p[-1].coord,coord)
+            else:
+                theta = None
+        else:
+            phi = None
+    else:
+        dist = None
+
+    return [dist,phi,theta]
