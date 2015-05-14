@@ -1,3 +1,5 @@
+import numpy as np
+import numpy.linalg as la
 import lennardjonespotential
 import buildMolecule
 
@@ -16,7 +18,10 @@ def load_atoms(pdb_file):
     pdb = f.readlines()
     f.close()
 
-    lastC = lastCA = lastN = None
+    # initialize variables
+    tree = lastC = lastCA = lastN = None
+    branch = 0
+    remoteness = "A"
 
     # loop through every atom record
     for l in pdb:
@@ -28,17 +33,19 @@ def load_atoms(pdb_file):
             #    if atoms[-1][17:26] == l[17:26]:
             #        continue
 
-            atomname   = l[12:15] # atom name         e.g. " CG1"," CA ", " O  "
-            # element  = l[12:13] # chemical element  e.g. " C","NA"
-
-            remoteness = l[14:14] # remoteness indicator where A<B<G<D<E<Z<H
-            branch     = l[15:15] # digit designating the branch direction;
-                                  # left blank if the sidechain is unbranched
+            # atom name, e.g. " CG1"," CA ", " O  "
+            atomname   = l[12:16]
+            # remoteness indicator where A<B<G<D<E<Z<H
+            remoteness = l[14]
+            # digit designating the branch direction;
+            # left blank if the sidechain is unbranched
+            branch     = int(l[15].replace(" ","0"))
             x          = l[30:37]
             y          = l[38:45]
             z          = l[46:53]
             coord      = [float(x),float(y),float(z)]
-            branch     = int(branch)
+
+            #print("atomname: "+atomname)
 
             # new residue
             if atomname == " N  ":
@@ -81,13 +88,13 @@ def load_atoms(pdb_file):
                 # has been given, it has to be the final one and appended to
                 # the any of the last ones (wlog to the last one)
                 # e.g. the CZ in (CB,CG,CD1,CD2,CE1,CE2,CZ)
-                if paths[1] and branch == 0:
+                if len(paths)>1 and branch == 0:
                     dist,phi,theta = calcInternalCoords(paths[lastbranch],coord)
                     lastadded.children.append(Node(coord,dist,phi,theta,[]))
 
                 # this branch already exists --> just append it
                 # e.g. the CG in (CD,CG) or the NE1 in (CD1,CD2,NE1,...)
-                elif paths[branch]:
+                elif len(paths) > branch:
                     dist,phi,theta = calcInternalCoords(paths[branch],coord)
                     paths[branch][-1].children.append(Node(coord,dist,phi,theta,[]))
                     # set the current path's last element to the children
@@ -103,6 +110,8 @@ def load_atoms(pdb_file):
                     # as the last one
                     # e.g. the CD2 in (CG,CD1,CD2)
                     if remoteness == lastremoteness:
+                        # expand the list by one element
+                        paths.append(None)
                         # take the last branch without the most recent element
                         # e.g. (in the example above): take path 1 and cut off
                         # the CD1 - cutting of only the last element always
@@ -121,6 +130,8 @@ def load_atoms(pdb_file):
                     # another neighbour
                     # e.g. the CD1 in (CG,CD1,CD2)
                     else:
+                        # expand the list by one element
+                        paths.append(None)
                         # copy the parent's path
                         paths[branch] = paths[lastbranch]
                         dist,phi,theta = calcInternalCoords(paths[branch],coord)
@@ -130,6 +141,9 @@ def load_atoms(pdb_file):
                         paths[branch].append(lastadded.children[-1])
                         # update the lastadded internal variable
                         lastadded = paths[branch][-1]
+
+            #print(tree)
+            #print("---")
 
         lastbranch     = branch
         lastremoteness = remoteness
@@ -144,16 +158,16 @@ class PdbSyntaxError(Exception):
         return repr(self.value)
 
 def angle(A,B,C):
-    p = A-B
-    q = C-B
-    cos = np.dot(p, q)
-    sin = la.norm(np.cross(p, q))
-    return np.arctan2(sin, cos)
+    p = np.asarray(A)-np.asarray(B)
+    q = np.asarray(C)-np.asarray(B)
+    cos = np.dot(p,q)
+    sin = la.norm(np.cross(p,q))
+    return np.arctan2(sin,cos)
 
 def dihedralAngle(A,B,C,D):
-    r = C-B
-    p = B-A
-    q = D-C
+    r = np.asarray(C)-np.asarray(B)
+    p = np.asarray(B)-np.asarray(A)
+    q = np.asarray(D)-np.asarray(C)
     normpr = la.norm(p)*la.norm(r)
     cos = np.dot(p,r)/normpr
     sin = la.norm(np.cross(p,r))/normpr
@@ -175,17 +189,12 @@ def calcInternalCoords(p,coord):
 
     *..."this.parent" is only pseudo syntax, it's not actually implemented
     """
+    dist = phi = theta = None
     if p[-1]:
-        dist = np.linalg.norm(p[-1].coord - coord)
+        dist = np.linalg.norm(np.asarray(p[-1].coord) - np.asarray(coord))
         if p[-2]:
             phi = angle(p[-2].coord,p[-1].coord,coord)
             if p[-3]:
                 theta = dihedralAngle(p[-3].coord,p[-2].coord,p[-1].coord,coord)
-            else:
-                theta = None
-        else:
-            phi = None
-    else:
-        dist = None
 
     return [dist,phi,theta]
