@@ -16,6 +16,8 @@ def load_atoms(pdb_file):
     pdb = f.readlines()
     f.close()
 
+    lastC = lastCA = lastN = None
+
     # loop through every atom record
     for l in pdb:
         # ignore hydrogen as it is not specified consistently across PDB files
