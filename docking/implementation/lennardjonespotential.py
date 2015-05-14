@@ -1,4 +1,4 @@
-import numpy
+import numpy as np
 
 # size of the potential well
 eps  = 1
@@ -11,6 +11,13 @@ rm12 = rm6**2
 def LJ(r2):
     """
     Lennard-Jones potential for a given distance r^2
+
+    Args:
+      r2(double): Squared distance between two particles
+                  whose LJ-potential should be calculated
+
+    Returns:
+      U(double):  Potential as a function of r2
     """
     ir2  = 1.0/r2 # (r^2)^-1
     ir6  = ir2**3 # (r^6)^-1

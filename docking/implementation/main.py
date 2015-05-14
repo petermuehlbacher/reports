@@ -45,9 +45,9 @@ def load_atoms(pdb_file):
             # digit designating the branch direction;
             # left blank if the sidechain is unbranched
             branch     = int(l[15].replace(" ","0"))
-            x          = l[30:37]
-            y          = l[38:45]
-            z          = l[46:53]
+            x          = l[30:38]
+            y          = l[38:46]
+            z          = l[46:54]
             coord      = [float(x),float(y),float(z)]
 
             #print("atomname: "+atomname)
@@ -154,14 +154,18 @@ def load_atoms(pdb_file):
 
     return tree
 
-class PdbSyntaxError(Exception):
-    def __init__(self, value):
-        self.value = value
-
-    def __str__(self):
-        return repr(self.value)
-
 def angle(A,B,C):
+    """
+    Calculates the angle (in [-π,π)) of the the vectors BA and BC.
+
+    Args:
+      A(double[]):  coordinates of the first point describing the two vectors
+      B(double[]):  coordinates of the second point describing the two vectors
+      C(double[]):  coordinates of the third point describing the two vectors
+
+    Returns:
+      phi(double):  the angle between the two planes (A,B,C) and (B,C,D).
+    """
     p = np.asarray(A)-np.asarray(B)
     q = np.asarray(C)-np.asarray(B)
     cos = np.dot(p,q)
@@ -169,6 +173,19 @@ def angle(A,B,C):
     return np.arctan2(sin,cos)
 
 def dihedralAngle(A,B,C,D):
+    """
+    Calculates the angle (in [-π,π)) of the two planes, given by
+    (A,B,C) and (B,C,D).
+
+    Args:
+      A(double[]):  coordinates of the first point describing the two planes
+      B(double[]):  coordinates of the second point describing the two planes
+      C(double[]):  coordinates of the third point describing the two planes
+      D(double[]):  coordinates of the fourth point describing the two planes
+
+    Returns:
+      theta(double):    the angle between the two planes (A,B,C) and (B,C,D).
+    """
     r = np.asarray(C)-np.asarray(B)
     p = np.asarray(B)-np.asarray(A)
     q = np.asarray(D)-np.asarray(C)
