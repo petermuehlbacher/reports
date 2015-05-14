@@ -1,10 +1,14 @@
-import numpy
+import numpy as np
+import numpy.linalg as la
 import Node
+
+# define it globally so that `buildChildren()` has access
+molecule = []
 
 def buildMolecule(S,alpha,beta,node):
     """
     Given some node instance like described in the corresponding class this
-    function returns an array of coordinates (e.g. [[0,0,0],[a,b,c],...])
+    function returns a list of coordinates (e.g. [[S_1,S_2,S_3],[a,b,c],...])
 
     Args:
       S(double[]):   starting point, e.g. [2,3,4]
@@ -32,13 +36,15 @@ def buildMolecule(S,alpha,beta,node):
             molecule.append(C)
             buildChildren(iii,A,B)
 
-    # pseudo code for now:
-    #   real_molecule = []
-    #   for atom in molecule:
-    #     real_molecule.append(R_alpha*R_beta*atom+S)
-    #   return real_molecule
-    # where R_alpha describes the rotation of an angle alpha around the Z-axis
-    # (same for R_beta, just with the XZ-plane)
+    for atom in molecule:
+    #    Ra = [[],[],[]]
+    #    Rb = [[],[],[]]
+    #
+    #    atom = np.dot(Ra,atom)
+    #    atom = np.dot(Rb,atom)
+        atom = atom + np.asarray(S)
+
+    return molecule
 
 
 def buildChildren(parent,A,B):
@@ -82,19 +88,19 @@ def nerf(A,B,C,R,theta,phi,lbc=""):
     Rcostheta = math.cos(theta)*R
     Rsintheta = math.sin(theta)*R
 
-    D    = Point(Rcostheta, Rsintheta*cosphi, Rsintheta*sinphi)
+    D    = np.asarray([Rcostheta, Rsintheta*cosphi, Rsintheta*sinphi])
     D    = R*D
 
-    BC   = C-B
-    lbc  = lbc or np.linalg.norm(BC)
+    BC   = np.asarray(C)-np.asarray(B)
+    lbc  = lbc or la.norm(BC)
     bc   = BC/lbc
-    AB   = B-A
+    AB   = np.asarray(B)-np.asarray(A)
     N    = np.cross(AB,bc)
-    n    = N/np.linalg.norm(N)
+    n    = N/la.norm(N)
     nxbc = np.cross(n,bc)
 
-    M = np.matrix([bc,nxbc,n])
-    D = M*D+C
+    M = np.transpose([bc,nxbc,n])
+    D = np.dot(M,D)+C
 
     return D
 
