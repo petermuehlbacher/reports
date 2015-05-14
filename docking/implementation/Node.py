@@ -26,7 +26,7 @@ class Node( object ):
     def __init__( self, coord, dist, phi, theta, children ):
         """
         Args:
-          coord(int[]):     coordinates of the node given as a list (e.g. [0,0,0])
+          coord(double[]):  coordinates of the node given as a list (e.g. [0,0,0])
                             (usually that's what we're calculating from the
                             other arguments, also called "internal coordinates")
           dist(double):     distance to the parent node (bond length)
