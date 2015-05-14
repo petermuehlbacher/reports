@@ -1,3 +1,5 @@
+import json
+
 class Node( object ):
     """
     Stores an atom's coordinates (internal and absolute), as well as its
@@ -40,3 +42,6 @@ class Node( object ):
         self.coord                      = coord
         self.dist, self.phi, self.theta = dist, phi, theta
         self.children                   = children
+
+    def __str__(self):
+        return json.dumps(self, default=lambda o: o.__dict__)
