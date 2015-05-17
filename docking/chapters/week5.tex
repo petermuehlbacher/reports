@@ -1,0 +1,63 @@
+\subsection{The Node Class}
+
+To store the data I introduced a \textit{Node} class with the following fields:
+\begin{enumerate}
+	\item \texttt{atomname}(String): atom name, e.g. \texttt{\_C\_\_}, \texttt{\_CG1}, where underscores are used in lieu of whitespaces to remove ambiguities; so far this field doesn't serve any particular purpose except making debugging easier
+	\item \texttt{coord}(double[]): coordinates of the node given as a list (e.g. $[0,0,0]$; usually that's what we're calculating from the other arguments, also referred to as ``internal coordinates'')
+	\item \texttt{dist}(double): distance to the parent node (bond length)
+	\item \texttt{phi}(double): bond angle between \texttt{this}, \texttt{this.parent}\footnote{\texttt{this.parent} is only pseudo syntax, a parent field is not implemented because its recursive nature would slow down the program considerably.} and \texttt{this.parent.parent}
+	\item \texttt{theta}(double): dihedral angle between \texttt{this}, \texttt{this.parent}, \texttt{this.parent.parent and this.parent.parent.parent}
+	\item \texttt{children}(Node[]): list of other node elements
+\end{enumerate}
+
+In a real world applications does not seem to be the way to go since languages like Python have a recursion limit which is easily reached.
+In Python one can kind of avoid this problem by manually increasing this limit by \texttt{import sys} and \texttt{sys.setrecursionlimit(n)}, where $n$ should be adjusted to the molecule one is currently dealing with.
+It seems to be common practice\footnote{e.g. c.f. \url{http://stackoverflow.com/questions/8177073/python-maximum-recursion-depth-exceeded}} to rewrite the code to use iterative instead of recursive methods in those cases, but as I couldn't find a source stating the recursive approach is slower I kept the current, recursive methods which are easier to implement.
+
+\subsection{Absolute to Internal Coordinates}
+The task of extracting a tree-like structure as defined in the \texttt{Node} class from the PDB file was much more tedious than I originally thought.
+The main problem was that no \texttt{parent} fields were in use (see above why) and thus a separate structure containing information about the current item's predecessors had to be maintained.
+In a linear setting this would not have caused any problems, but if there are branching points it gets harder and harder to keep track of what's happening. I am really lucky to have chosen Python as my programming language as variables are ``passed by assignment''\footnote{\url{https://docs.python.org/3/faq/programming.html#how-do-i-write-a-function-with-output-parameters-call-by-reference}} which makes everything much more convenient as if variables were passed by value. Note that the ``link'' created by the ``passing by pointer'' method for mutable objects like lists can be broken by an assignment which was used a lot in the actual implementation.
+
+Another issue was that there are actually a lot more implicit assumptions about protein structure in the PDB files than I had previously imagined and from author to author further undocumented ``conventions'' are introduced.\footnote{c.f. \url{http://chemistry.stackexchange.com/questions/30807/about-undocumented-conventions-in-pdb-files} for an example with $H$.}
+
+Obvious conventions are the structure of the backbone which is always assumed to be obvious. However, when it comes to hydrogen atoms it gets complicated. In some PDB files they are ignored completely, in others \textit{some} are given\footnote{However, it is not clear what they are connected to, as there are no additional \texttt{CONECT} records and the usual convention when it comes to numbering branches is ignored.} and then there are some where every $H$ atom's position got an entry. Due to the inconsistency with $H$ atoms I choose to ignore them completely.
+
+Concerning the ``atomname'' field (e.g. \texttt{\_C\_\_}, \texttt{\_CG1}, \texttt{\_NE2}) the official documentation\footnote{\url{http://www.wwpdb.org/documentation/file-format-content/format33/sect9.html\#ATOM}.} was no help; what really helped was this unofficial ``guide'': \url{http://haldane.bu.edu/needle-doc/new/atom-format.html} and taking a look at a real PDB file\footnote{I chose \url{http://www.rcsb.org/pdb/files/1E7I.pdb}.} while comparing each residue to its corresponding Wikipedia entry.
+
+Another convention is that if branches were already in use and an atom doesn't have a branch, nor a distance identifier then it is assumed to be a ``child'' of the previous atom.
+
+Also, it is clear that ring-like structures like in Tryptophan are not compatible with the tree-like structures. The simple solution is to just ignore one bond and not let the ring's dihedral angles vary.
+
+The actual implementation is not particularly interesting from a mathematical point of view as it is basically a long list of \texttt{if\dots else} branches. In case you are interested, take a look at \url{http://htmlpreview.github.io/?https://github.com/petermuehlbacher/reports/blob/master/docking/implementation/proteindocking.html}.
+
+\subsection{The NeRF Algorithm}
+
+As proposed in \url{http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.83.8235&rep=rep1&type=pdf} we calculate an atom's absolute coordinates. This function, depending on the atom's  internal and its three ancestors' absolute coordinates, will henceforth be referred to as \texttt{nerf()}.
+
+\subsection{Calculating the Children's Absolute Coordinates}
+
+First of all we define a recursive function 
+
+\begin{algorithm}[H]
+	\KwData{\texttt{parent}(Node), \texttt{A}(double[]), \texttt{B}(double[])}
+	\KwResult{A recursive method to traverse a tree-like structure and apply the NeRF algorithm to every child. Also adds the calculated coordinates to the \texttt{molecule}(double[][]) list.}
+ 
+ 	\texttt{C} $\leftarrow$ \texttt{parent.coord}\;
+	\For{\texttt{child} in \texttt{parent.children}}{
+		\texttt{child.coord} $\leftarrow$ \texttt{nerf(A,B,C,child.dist,child.theta,child.phi)}\;
+		\texttt{molecule.append(child.coord)}\;
+		\texttt{buildChildren(child,B,C)}\;
+	}
+	\caption{buildChildren()}
+\end{algorithm}
+
+Note that in the actual implementation the NeRF algorithm is called with \texttt{parent.dist} as additional parameter to get rid of one additional computation.
+
+Also, the first three levels' atoms are assumed to be static due to the internal coordinates' nature. In practice these first three levels would be the first residue's $N$, $CA$, $CB$ (in case there is one) and $C$.
+Note that, in order to bypass this problem, one could have defined ``imaginary'' auxiliary atoms at some coordinates, fixed by convention, in order to retrieve internal coordinates like a dihedral angle for the first residue's $CA$, etc.
+
+
+
+
+
