@@ -103,9 +103,3 @@ def nerf(A,B,C,R,theta,phi,lbc=""):
     D = np.dot(M,D)+C
 
     return D
-
-
-# initialize the first few atoms
-# molecule = [[0,0,0], [lAB,0,0], [0,0,0]]
-# molecule[2].x = -lBC*math.cos(alpha) + l1
-# molecule[2].y = -lBC*math.sin(alpha)
