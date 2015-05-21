@@ -1,14 +1,17 @@
-import numpy as np
-import numpy.linalg as la
 import lennardjonespotential
 import buildMolecule
+import nerf
+import geometry
+
+import numpy as np
+import numpy.linalg as la
 import sys
 # need to increase maximal amount of recursions
 # i.e. children.children.[..].children
 # could save it another format, but then buildMolecule.py gets complicated
 sys.setrecursionlimit(10000)
 
-def load_atoms(pdb_file):
+def PDBtoInternalCoords(pdb_file):
     """
     Reads a PDB file and converts the data to a tree-like structure.
 
@@ -153,69 +156,3 @@ def load_atoms(pdb_file):
         lastremoteness = remoteness
 
     return tree
-
-def angle(A,B,C):
-    """
-    Calculates the angle (in [-π,π)) of the the vectors BA and BC.
-
-    Args:
-      A(double[]):  coordinates of the first point describing the two vectors
-      B(double[]):  coordinates of the second point describing the two vectors
-      C(double[]):  coordinates of the third point describing the two vectors
-
-    Returns:
-      phi(double):  the angle between the two planes (A,B,C) and (B,C,D).
-    """
-    p = np.asarray(A)-np.asarray(B)
-    q = np.asarray(C)-np.asarray(B)
-    cos = np.dot(p,q)
-    sin = la.norm(np.cross(p,q))
-    return np.arctan2(sin,cos)
-
-def dihedralAngle(A,B,C,D):
-    """
-    Calculates the angle (in [-π,π)) of the two planes, given by
-    (A,B,C) and (B,C,D).
-
-    Args:
-      A(double[]):  coordinates of the first point describing the two planes
-      B(double[]):  coordinates of the second point describing the two planes
-      C(double[]):  coordinates of the third point describing the two planes
-      D(double[]):  coordinates of the fourth point describing the two planes
-
-    Returns:
-      theta(double):    the angle between the two planes (A,B,C) and (B,C,D).
-    """
-    r = np.asarray(C)-np.asarray(B)
-    p = np.asarray(B)-np.asarray(A)
-    q = np.asarray(D)-np.asarray(C)
-    normpr = la.norm(p)*la.norm(r)
-    cos = np.dot(p,r)/normpr
-    sin = la.norm(np.cross(p,r))/normpr
-    return np.arctan2(sin, cos)
-
-def calcInternalCoords(p,coord):
-    """
-    Calculates internal coordinates
-
-    Args:
-      coord(double[]):  coordinates of the current (=last) node given as a list
-      p(Node[]):        list of predecessors (e.g. [...,grandparent,parent])
-
-    Returns:
-      dist(double):     distance to the parent node (bond length)
-      phi(double):      bond angle between this, this.parent and this.parent.parent
-      theta(double):    dihedral angle between this, this.parent, this.parent.parent
-                        and this.parent.parent.parent*
-
-    *..."this.parent" is only pseudo syntax, it's not actually implemented
-    """
-    dist = phi = theta = None
-    if p[-1]:
-        dist = np.linalg.norm(np.asarray(p[-1].coord) - np.asarray(coord))
-        if p[-2]:
-            phi = angle(p[-2].coord,p[-1].coord,coord)
-            if p[-3]:
-                theta = dihedralAngle(p[-3].coord,p[-2].coord,p[-1].coord,coord)
-
-    return [dist,phi,theta]
