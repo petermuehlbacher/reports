@@ -1676,25 +1676,17 @@ div#notebook {
   <div tabindex="-1" id="notebook" class="border-box-sizing">
     <div class="container" id="notebook-container">
 
-<div class="cell border-box-sizing text_cell rendered">
-<div class="prompt input_prompt">
-</div>
-<div class="inner_cell">
-<div class="text_cell_render border-box-sizing rendered_html">
-<p>The corresponding report can be found <a href="https://github.com/petermuehlbacher/reports/blob/master/docking/docking.pdf">here</a>.</p>
-</div>
-</div>
-</div>
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
 <div class="prompt input_prompt">
-In&nbsp;[156]:
+In&nbsp;[719]:
 </div>
 <div class="inner_cell">
     <div class="input_area">
-<div class="highlight"><pre><span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">numpy.linalg</span> <span class="kn">as</span> <span class="nn">la</span>
-<span class="kn">import</span> <span class="nn">sys</span>
+<div class="highlight"><pre><span class="kn">import</span> <span class="nn">autograd.numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">autograd.numpy.linalg</span> <span class="kn">as</span> <span class="nn">la</span>
+<span class="kn">import</span> <span class="nn">sys</span><span class="o">,</span> <span class="nn">math</span><span class="o">,</span> <span class="nn">timeit</span>
+<span class="kn">from</span> <span class="nn">autograd</span> <span class="kn">import</span> <span class="n">value_and_grad</span> 
 </pre></div>
 
 </div>
@@ -1755,7 +1747,7 @@ In&nbsp;[156]:
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
 <div class="prompt input_prompt">
-In&nbsp;[164]:
+In&nbsp;[720]:
 </div>
 <div class="inner_cell">
     <div class="input_area">
@@ -1769,31 +1761,37 @@ In&nbsp;[164]:
 <span class="sd">    further assumptions. Of course their internal coordinates have to be chosen</span>
 <span class="sd">    so that they do not conflict with the prescribed absolute coordinates (x,y,z).</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">element</span><span class="p">,</span> <span class="n">coord</span><span class="p">,</span> <span class="n">dist</span><span class="p">,</span> <span class="n">phi</span><span class="p">,</span> <span class="n">theta</span><span class="p">,</span> <span class="n">children</span> <span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span> <span class="bp">self</span><span class="p">,</span> <span class="n">atomname</span><span class="p">,</span> <span class="n">coord</span><span class="p">,</span> <span class="n">dist</span><span class="p">,</span> <span class="n">phi</span><span class="p">,</span> <span class="n">theta</span><span class="p">,</span> <span class="n">children</span><span class="p">,</span> <span class="n">prevTheta</span> <span class="o">=</span> <span class="bp">None</span><span class="p">,</span> <span class="n">prevD</span> <span class="o">=</span> <span class="bp">None</span> <span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Args:</span>
-<span class="sd">          element(String):  atom name (e.g. &quot; C  &quot;, &quot; CG1&quot;, etc.)</span>
-<span class="sd">          coord(double[]):  coordinates of the node given as a list (e.g. [0,0,0])</span>
-<span class="sd">                            (usually that&#39;s what we&#39;re calculating from the</span>
-<span class="sd">                            other arguments, also called &quot;internal coordinates&quot;)</span>
-<span class="sd">          dist(double):     distance to the parent node (bond length)</span>
-<span class="sd">          phi(double):      bond angle between this, this.parent and this.parent.parent</span>
-<span class="sd">          theta(double):    dihedral angle between this, this.parent, this.parent.parent</span>
-<span class="sd">                            and this.parent.parent.parent*</span>
-<span class="sd">          children(Node[]): list of other node elements</span>
+<span class="sd">          atomname(String):  atom name (e.g. &quot; C  &quot;, &quot; CG1&quot;, etc.)</span>
+<span class="sd">          coord(double[]):   coordinates of the node given as a list (e.g. [0,0,0])</span>
+<span class="sd">                             (usually that&#39;s what we&#39;re calculating from the</span>
+<span class="sd">                             other arguments, also called &quot;internal coordinates&quot;)</span>
+<span class="sd">          dist(double):      distance to the parent node (bond length)</span>
+<span class="sd">          phi(double):       bond angle between this, this.parent and this.parent.parent</span>
+<span class="sd">          theta(double):     dihedral angle between this, this.parent, this.parent.parent</span>
+<span class="sd">                             and this.parent.parent.parent*</span>
+<span class="sd">          children(Node[]):  list of other node elements</span>
+<span class="sd">          prevTheta(double): stores the previous dihedral angle to be able to check if</span>
+<span class="sd">                             it was updated</span>
+<span class="sd">          prevD(double[]):   previous &quot;internal&quot; coordinates - basically these are the</span>
+<span class="sd">                             relative coordinates w.r.t. its parent and without rotation;</span>
+<span class="sd">                             it is being used by the NeRF algorithm</span>
 
 <span class="sd">        *...&quot;this.parent&quot; is only pseudo syntax, it&#39;s not actually implemented</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">element</span>                    <span class="o">=</span> <span class="n">element</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">atomname</span>                   <span class="o">=</span> <span class="n">atomname</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">coord</span>                      <span class="o">=</span> <span class="n">coord</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dist</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">phi</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">theta</span> <span class="o">=</span> <span class="n">dist</span><span class="p">,</span> <span class="n">phi</span><span class="p">,</span> <span class="n">theta</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">children</span>                   <span class="o">=</span> <span class="n">children</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prevTheta</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">prevD</span>      <span class="o">=</span> <span class="n">prevTheta</span><span class="p">,</span> <span class="n">prevD</span>
         
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Recursive method for a better overview when printing a Node instance</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">ret</span> <span class="o">=</span> <span class="s">&quot;|    &quot;</span><span class="o">*</span><span class="n">level</span><span class="o">+</span><span class="nb">repr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">element</span><span class="p">)</span><span class="o">+</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="s">&quot;|    &quot;</span><span class="o">*</span><span class="n">level</span><span class="o">+</span><span class="nb">repr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">atomname</span><span class="p">)</span><span class="o">+</span><span class="nb">repr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">theta</span><span class="p">)</span><span class="o">+</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span>
         <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
             <span class="n">ret</span> <span class="o">+=</span> <span class="n">child</span><span class="o">.</span><span class="n">__repr__</span><span class="p">(</span><span class="n">level</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">ret</span>
@@ -1816,25 +1814,46 @@ In&nbsp;[164]:
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
 <div class="prompt input_prompt">
-In&nbsp;[163]:
+In&nbsp;[721]:
 </div>
 <div class="inner_cell">
     <div class="input_area">
-<div class="highlight"><pre><span class="k">def</span> <span class="nf">angle</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">B</span><span class="p">,</span><span class="n">C</span><span class="p">):</span>
-    <span class="n">p</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">A</span><span class="p">)</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">B</span><span class="p">)</span>
-    <span class="n">q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">C</span><span class="p">)</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">B</span><span class="p">)</span>
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">cross</span><span class="p">(</span><span class="n">v1</span><span class="p">,</span><span class="n">v2</span><span class="p">):</span>
+    <span class="n">x1</span> <span class="o">=</span> <span class="n">v1</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">x2</span> <span class="o">=</span> <span class="n">v2</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">y1</span> <span class="o">=</span> <span class="n">v1</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">y2</span> <span class="o">=</span> <span class="n">v2</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">z1</span> <span class="o">=</span> <span class="n">v1</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">z2</span> <span class="o">=</span> <span class="n">v2</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">y1</span><span class="o">*</span><span class="n">z2</span><span class="o">-</span><span class="n">z1</span><span class="o">*</span><span class="n">y2</span>
+    <span class="n">y</span> <span class="o">=-</span><span class="n">x1</span><span class="o">*</span><span class="n">z2</span><span class="o">+</span><span class="n">z1</span><span class="o">*</span><span class="n">x2</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="n">x1</span><span class="o">*</span><span class="n">y2</span><span class="o">-</span><span class="n">y1</span><span class="o">*</span><span class="n">x2</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span><span class="p">])</span>
+
+<span class="k">def</span> <span class="nf">normalize</span><span class="p">(</span><span class="n">v</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">v</span><span class="o">/</span><span class="n">la</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">v_angle</span><span class="p">(</span><span class="n">v1</span><span class="p">,</span><span class="n">v2</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">arccos</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">v1</span><span class="o">/</span><span class="n">la</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">v1</span><span class="p">),</span><span class="n">v2</span><span class="o">.</span><span class="n">T</span><span class="o">/</span><span class="n">la</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">v2</span><span class="p">)))</span>
+
+<span class="k">def</span> <span class="nf">angle</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">B</span><span class="p">,</span><span class="n">C</span><span class="p">):</span>
+    <span class="n">p</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">A</span><span class="p">)</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">B</span><span class="p">)</span>
+    <span class="n">q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">C</span><span class="p">)</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">B</span><span class="p">)</span>
     <span class="n">cos</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="n">q</span><span class="p">)</span>
-    <span class="n">sin</span> <span class="o">=</span> <span class="n">la</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="n">q</span><span class="p">))</span>
-    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">sin</span><span class="p">,</span><span class="n">cos</span><span class="p">)</span>
+    <span class="n">sin</span> <span class="o">=</span> <span class="n">la</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">cross</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="n">q</span><span class="p">))</span>
+    <span class="n">angle</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">sin</span><span class="p">,</span><span class="n">cos</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">min</span><span class="p">(</span><span class="n">angle</span><span class="p">,</span><span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="o">-</span><span class="n">angle</span><span class="p">)</span>
 
 <span class="k">def</span> <span class="nf">dihedralAngle</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">B</span><span class="p">,</span><span class="n">C</span><span class="p">,</span><span class="n">D</span><span class="p">):</span>
-    <span class="n">r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">C</span><span class="p">)</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">B</span><span class="p">)</span>
-    <span class="n">p</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">B</span><span class="p">)</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
-    <span class="n">q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">D</span><span class="p">)</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">C</span><span class="p">)</span>
-    <span class="n">normpr</span> <span class="o">=</span> <span class="n">la</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">p</span><span class="p">)</span><span class="o">*</span><span class="n">la</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
-    <span class="n">cos</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="n">r</span><span class="p">)</span><span class="o">/</span><span class="n">normpr</span>
-    <span class="n">sin</span> <span class="o">=</span> <span class="n">la</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="n">r</span><span class="p">))</span><span class="o">/</span><span class="n">normpr</span>
-    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">sin</span><span class="p">,</span> <span class="n">cos</span><span class="p">)</span>
+    <span class="n">AB</span> <span class="o">=</span> <span class="n">normalize</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">B</span><span class="p">)</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">A</span><span class="p">))</span>
+    <span class="n">BC</span> <span class="o">=</span> <span class="n">normalize</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">C</span><span class="p">)</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">B</span><span class="p">))</span>
+    <span class="n">CD</span> <span class="o">=</span> <span class="n">normalize</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">D</span><span class="p">)</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">C</span><span class="p">))</span>
+    <span class="n">ABxBC</span> <span class="o">=</span> <span class="n">cross</span><span class="p">(</span><span class="n">AB</span><span class="p">,</span><span class="n">BC</span><span class="p">)</span>
+    <span class="n">BCxCD</span> <span class="o">=</span> <span class="n">cross</span><span class="p">(</span><span class="n">BC</span><span class="p">,</span><span class="n">CD</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">cross</span><span class="p">(</span><span class="n">CD</span><span class="p">,</span><span class="n">AB</span><span class="p">),</span><span class="n">BC</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">v_angle</span><span class="p">(</span><span class="n">ABxBC</span><span class="p">,</span><span class="n">BCxCD</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="o">-</span><span class="n">v_angle</span><span class="p">(</span><span class="n">ABxBC</span><span class="p">,</span><span class="n">BCxCD</span><span class="p">)</span>
 
 <span class="k">def</span> <span class="nf">calcInternalCoords</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="n">coord</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
@@ -1854,7 +1873,7 @@ In&nbsp;[163]:
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">dist</span> <span class="o">=</span> <span class="n">phi</span> <span class="o">=</span> <span class="n">theta</span> <span class="o">=</span> <span class="bp">None</span>
     <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
-        <span class="n">dist</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">coord</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">coord</span><span class="p">))</span>
+        <span class="n">dist</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">coord</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">coord</span><span class="p">))</span>
         <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]:</span>
             <span class="n">phi</span> <span class="o">=</span> <span class="n">angle</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">coord</span><span class="p">,</span><span class="n">p</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">coord</span><span class="p">,</span><span class="n">coord</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">p</span><span class="p">[</span><span class="o">-</span><span class="mi">3</span><span class="p">]:</span>
@@ -1880,7 +1899,7 @@ In&nbsp;[163]:
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
 <div class="prompt input_prompt">
-In&nbsp;[233]:
+In&nbsp;[722]:
 </div>
 <div class="inner_cell">
     <div class="input_area">
@@ -1899,6 +1918,7 @@ In&nbsp;[233]:
 <span class="sd">    Returns:</span>
 <span class="sd">      tree(Node):       tree-like structure representing the composition of</span>
 <span class="sd">                        the protein that&#39;s given by pdb_file; ignores H atoms</span>
+<span class="sd">      N(int):           number of atoms</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">f</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">pdb_file</span><span class="p">,</span><span class="s">&#39;r&#39;</span><span class="p">)</span>
     <span class="n">pdb</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">readlines</span><span class="p">()</span>
@@ -1908,6 +1928,8 @@ In&nbsp;[233]:
     <span class="n">tree</span> <span class="o">=</span> <span class="n">lastC</span> <span class="o">=</span> <span class="n">lastCA</span> <span class="o">=</span> <span class="n">lastN</span> <span class="o">=</span> <span class="bp">None</span>
     <span class="n">branch</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">remoteness</span> <span class="o">=</span> <span class="s">&quot;A&quot;</span>
+    
+    <span class="n">N</span> <span class="o">=</span> <span class="mi">0</span>
 
     <span class="c"># loop through every atom record</span>
     <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">pdb</span><span class="p">:</span>
@@ -1931,7 +1953,8 @@ In&nbsp;[233]:
             <span class="n">z</span>          <span class="o">=</span> <span class="n">l</span><span class="p">[</span><span class="mi">46</span><span class="p">:</span><span class="mi">54</span><span class="p">]</span>
             <span class="n">coord</span>      <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">x</span><span class="p">),</span><span class="nb">float</span><span class="p">(</span><span class="n">y</span><span class="p">),</span><span class="nb">float</span><span class="p">(</span><span class="n">z</span><span class="p">)]</span>
             
-            <span class="c">#print(&quot;atomname: &quot;+atomname)</span>
+            <span class="c">#print(atomname)</span>
+            <span class="n">N</span> <span class="o">=</span> <span class="n">N</span><span class="o">+</span><span class="mi">1</span>
 
             <span class="c"># new residue</span>
             <span class="k">if</span> <span class="n">atomname</span> <span class="o">==</span> <span class="s">&quot; N  &quot;</span><span class="p">:</span>
@@ -1944,11 +1967,13 @@ In&nbsp;[233]:
                 <span class="c"># new residue to append to lastC</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">dist</span><span class="p">,</span><span class="n">phi</span><span class="p">,</span><span class="n">theta</span> <span class="o">=</span> <span class="n">calcInternalCoords</span><span class="p">([</span><span class="n">lastN</span><span class="p">,</span><span class="n">lastCA</span><span class="p">,</span><span class="n">lastC</span><span class="p">],</span><span class="n">coord</span><span class="p">)</span>
+                    <span class="c">#print(dist,phi,theta)</span>
                     <span class="n">lastC</span><span class="o">.</span><span class="n">children</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Node</span><span class="p">(</span><span class="n">atomname</span><span class="p">,</span><span class="n">coord</span><span class="p">,</span><span class="n">dist</span><span class="p">,</span><span class="n">phi</span><span class="p">,</span><span class="n">theta</span><span class="p">,[]))</span>
                     <span class="n">lastN</span> <span class="o">=</span> <span class="n">lastC</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
 
             <span class="k">elif</span> <span class="n">atomname</span> <span class="o">==</span> <span class="s">&quot; CA &quot;</span><span class="p">:</span>
                 <span class="n">dist</span><span class="p">,</span><span class="n">phi</span><span class="p">,</span><span class="n">theta</span> <span class="o">=</span> <span class="n">calcInternalCoords</span><span class="p">([</span><span class="n">lastCA</span><span class="p">,</span><span class="n">lastC</span><span class="p">,</span><span class="n">lastN</span><span class="p">],</span><span class="n">coord</span><span class="p">)</span>
+                <span class="c">#print(dist,phi,theta)</span>
                 <span class="n">lastN</span><span class="o">.</span><span class="n">children</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Node</span><span class="p">(</span><span class="n">atomname</span><span class="p">,</span><span class="n">coord</span><span class="p">,</span><span class="n">dist</span><span class="p">,</span><span class="n">phi</span><span class="p">,</span><span class="n">theta</span><span class="p">,[]))</span>
                 <span class="n">lastCA</span> <span class="o">=</span> <span class="n">lastN</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
 
@@ -1960,10 +1985,12 @@ In&nbsp;[233]:
 
             <span class="k">elif</span> <span class="n">atomname</span> <span class="o">==</span> <span class="s">&quot; C  &quot;</span><span class="p">:</span>
                 <span class="n">dist</span><span class="p">,</span><span class="n">phi</span><span class="p">,</span><span class="n">theta</span> <span class="o">=</span> <span class="n">calcInternalCoords</span><span class="p">([</span><span class="n">lastC</span><span class="p">,</span><span class="n">lastN</span><span class="p">,</span><span class="n">lastCA</span><span class="p">],</span><span class="n">coord</span><span class="p">)</span>
+                <span class="c">#print(dist,phi,theta)</span>
                 <span class="n">lastCA</span><span class="o">.</span><span class="n">children</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Node</span><span class="p">(</span><span class="n">atomname</span><span class="p">,</span><span class="n">coord</span><span class="p">,</span><span class="n">dist</span><span class="p">,</span><span class="n">phi</span><span class="p">,</span><span class="n">theta</span><span class="p">,[]))</span>
                 <span class="n">lastC</span> <span class="o">=</span> <span class="n">lastCA</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
             <span class="k">elif</span> <span class="n">atomname</span> <span class="o">==</span> <span class="s">&quot; O  &quot;</span><span class="p">:</span>
                 <span class="n">dist</span><span class="p">,</span><span class="n">phi</span><span class="p">,</span><span class="n">theta</span> <span class="o">=</span> <span class="n">calcInternalCoords</span><span class="p">([</span><span class="n">lastN</span><span class="p">,</span><span class="n">lastCA</span><span class="p">,</span><span class="n">lastC</span><span class="p">],</span><span class="n">coord</span><span class="p">)</span>
+                <span class="c">#print(dist,phi,theta)</span>
                 <span class="n">lastC</span><span class="o">.</span><span class="n">children</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Node</span><span class="p">(</span><span class="n">atomname</span><span class="p">,</span><span class="n">coord</span><span class="p">,</span><span class="n">dist</span><span class="p">,</span><span class="n">phi</span><span class="p">,</span><span class="n">theta</span><span class="p">,[]))</span>
 
             <span class="c"># if it&#39;s none of the above cases it&#39;s gotta be some rest R</span>
@@ -1975,12 +2002,14 @@ In&nbsp;[233]:
                 <span class="c"># e.g. the CZ in (CB,CG,CD1,CD2,CE1,CE2,CZ)</span>
                 <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">paths</span><span class="p">)</span><span class="o">&gt;</span><span class="mi">1</span> <span class="ow">and</span> <span class="n">branch</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
                     <span class="n">dist</span><span class="p">,</span><span class="n">phi</span><span class="p">,</span><span class="n">theta</span> <span class="o">=</span> <span class="n">calcInternalCoords</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="n">lastbranch</span><span class="p">],</span><span class="n">coord</span><span class="p">)</span>
+                    <span class="c">#print(dist,phi,theta)</span>
                     <span class="n">lastadded</span><span class="o">.</span><span class="n">children</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Node</span><span class="p">(</span><span class="n">atomname</span><span class="p">,</span><span class="n">coord</span><span class="p">,</span><span class="n">dist</span><span class="p">,</span><span class="n">phi</span><span class="p">,</span><span class="n">theta</span><span class="p">,[]))</span>
 
                 <span class="c"># this branch already exists --&gt; just append it</span>
                 <span class="c"># e.g. the CG in (CD,CG) or the NE1 in (CD1,CD2,NE1,...)</span>
                 <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">paths</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">branch</span><span class="p">:</span>
                     <span class="n">dist</span><span class="p">,</span><span class="n">phi</span><span class="p">,</span><span class="n">theta</span> <span class="o">=</span> <span class="n">calcInternalCoords</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="n">branch</span><span class="p">],</span><span class="n">coord</span><span class="p">)</span>
+                    <span class="c">#print(dist,phi,theta)</span>
                     <span class="n">paths</span><span class="p">[</span><span class="n">branch</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">children</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Node</span><span class="p">(</span><span class="n">atomname</span><span class="p">,</span><span class="n">coord</span><span class="p">,</span><span class="n">dist</span><span class="p">,</span><span class="n">phi</span><span class="p">,</span><span class="n">theta</span><span class="p">,[]))</span>
                     <span class="c"># set the current path&#39;s last element to the children</span>
                     <span class="c"># we just appended by appending it</span>
@@ -2003,6 +2032,7 @@ In&nbsp;[233]:
                         <span class="c"># works as the remoteness is equal to the last node&#39;s one</span>
                         <span class="n">paths</span><span class="p">[</span><span class="n">branch</span><span class="p">]</span> <span class="o">=</span> <span class="n">paths</span><span class="p">[</span><span class="n">lastbranch</span><span class="p">][</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
                         <span class="n">dist</span><span class="p">,</span><span class="n">phi</span><span class="p">,</span><span class="n">theta</span> <span class="o">=</span> <span class="n">calcInternalCoords</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="n">branch</span><span class="p">],</span><span class="n">coord</span><span class="p">)</span>
+                        <span class="c">#print(dist,phi,theta)</span>
 
                         <span class="c"># add it to the internal list</span>
                         <span class="n">paths</span><span class="p">[</span><span class="n">branch</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Node</span><span class="p">(</span><span class="n">atomname</span><span class="p">,</span><span class="n">coord</span><span class="p">,</span><span class="n">dist</span><span class="p">,</span><span class="n">phi</span><span class="p">,</span><span class="n">theta</span><span class="p">,[]))</span>
@@ -2020,6 +2050,7 @@ In&nbsp;[233]:
                         <span class="c"># copy the parent&#39;s path</span>
                         <span class="n">paths</span><span class="p">[</span><span class="n">branch</span><span class="p">]</span> <span class="o">=</span> <span class="n">paths</span><span class="p">[</span><span class="n">lastbranch</span><span class="p">]</span>
                         <span class="n">dist</span><span class="p">,</span><span class="n">phi</span><span class="p">,</span><span class="n">theta</span> <span class="o">=</span> <span class="n">calcInternalCoords</span><span class="p">(</span><span class="n">paths</span><span class="p">[</span><span class="n">branch</span><span class="p">],</span><span class="n">coord</span><span class="p">)</span>
+                        <span class="c">#print(dist,phi,theta)</span>
                         <span class="c"># add it to the tree</span>
                         <span class="n">lastadded</span><span class="o">.</span><span class="n">children</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Node</span><span class="p">(</span><span class="n">atomname</span><span class="p">,</span><span class="n">coord</span><span class="p">,</span><span class="n">dist</span><span class="p">,</span><span class="n">phi</span><span class="p">,</span><span class="n">theta</span><span class="p">,[]))</span>
                         <span class="c"># append the recently added element to the internal list</span>
@@ -2033,7 +2064,7 @@ In&nbsp;[233]:
         <span class="n">lastbranch</span>     <span class="o">=</span> <span class="n">branch</span>
         <span class="n">lastremoteness</span> <span class="o">=</span> <span class="n">remoteness</span>
 
-    <span class="k">return</span> <span class="n">tree</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">tree</span><span class="p">,</span><span class="n">N</span><span class="p">]</span>
 </pre></div>
 
 </div>
@@ -2044,13 +2075,13 @@ In&nbsp;[233]:
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
 <div class="prompt input_prompt">
-In&nbsp;[234]:
+In&nbsp;[723]:
 </div>
 <div class="inner_cell">
     <div class="input_area">
 <div class="highlight"><pre><span class="c"># for some reason Python can&#39;t find files ending in .pdb, so just change the type to .txt</span>
 <span class="c"># this is a truncated version of http://www.rcsb.org/pdb/files/1E7I.pdb</span>
-<span class="n">tree</span> <span class="o">=</span> <span class="n">load_atoms</span><span class="p">(</span><span class="s">&quot;test.txt&quot;</span><span class="p">)</span>
+<span class="n">tree</span><span class="p">,</span> <span class="n">N</span> <span class="o">=</span> <span class="n">load_atoms</span><span class="p">(</span><span class="s">&quot;test.txt&quot;</span><span class="p">)</span>
 <span class="k">print</span><span class="p">(</span><span class="n">tree</span><span class="p">)</span>
 </pre></div>
 
@@ -2065,37 +2096,37 @@ In&nbsp;[234]:
 <div class="output_area"><div class="prompt"></div>
 <div class="output_subarea output_stream output_stdout output_text">
 <pre>
-&apos; N  &apos;
-|    &apos; CA &apos;
-|    |    &apos; C  &apos;
-|    |    |    &apos; O  &apos;
-|    |    |    &apos; N  &apos;
-|    |    |    |    &apos; CA &apos;
-|    |    |    |    |    &apos; C  &apos;
-|    |    |    |    |    |    &apos; O  &apos;
-|    |    |    |    |    |    &apos; N  &apos;
-|    |    |    |    |    |    |    &apos; CA &apos;
-|    |    |    |    |    |    |    |    &apos; C  &apos;
-|    |    |    |    |    |    |    |    |    &apos; O  &apos;
-|    |    |    |    |    |    |    |    |    &apos; N  &apos;
-|    |    |    |    |    |    |    |    |    |    &apos; CA &apos;
-|    |    |    |    |    |    |    |    |    |    |    &apos; C  &apos;
-|    |    |    |    |    |    |    |    |    |    |    |    &apos; O  &apos;
-|    |    |    |    |    |    |    |    |    |    |    &apos; CB &apos;
-|    |    |    |    |    |    |    |    |    |    |    |    &apos; CG &apos;
-|    |    |    |    |    |    |    |    |    |    |    |    |    &apos; CD &apos;
-|    |    |    |    |    |    |    |    |    |    |    |    |    |    &apos; OE1&apos;
-|    |    |    |    |    |    |    |    |    |    |    |    |    |    &apos; OE2&apos;
-|    |    |    |    |    |    |    |    &apos; CB &apos;
-|    |    |    |    |    |    |    |    |    &apos; OG &apos;
-|    |    |    |    |    &apos; CB &apos;
-|    |    |    |    |    |    &apos; CG &apos;
-|    |    &apos; CB &apos;
-|    |    |    &apos; CG &apos;
-|    |    |    |    &apos; ND1&apos;
-|    |    |    |    |    &apos; CE1&apos;
-|    |    |    |    &apos; CD2&apos;
-|    |    |    |    |    &apos; NE2&apos;
+&apos; N  &apos;None
+|    &apos; CA &apos;None
+|    |    &apos; C  &apos;None
+|    |    |    &apos; O  &apos;-2.4287611898848667
+|    |    |    &apos; N  &apos;0.68329228277124165
+|    |    |    |    &apos; CA &apos;3.1030214623056609
+|    |    |    |    |    &apos; C  &apos;-1.3951430652846359
+|    |    |    |    |    |    &apos; O  &apos;2.6713583114691994
+|    |    |    |    |    |    &apos; N  &apos;-0.45924877246480916
+|    |    |    |    |    |    |    &apos; CA &apos;-3.1292876572200248
+|    |    |    |    |    |    |    |    &apos; C  &apos;-2.1285248358125357
+|    |    |    |    |    |    |    |    |    &apos; O  &apos;-0.96331821948157381
+|    |    |    |    |    |    |    |    |    &apos; N  &apos;2.1858268137353845
+|    |    |    |    |    |    |    |    |    |    &apos; CA &apos;3.1415166261816272
+|    |    |    |    |    |    |    |    |    |    |    &apos; C  &apos;-1.2756666593811632
+|    |    |    |    |    |    |    |    |    |    |    |    &apos; O  &apos;2.3650386243723349
+|    |    |    |    |    |    |    |    |    |    |    &apos; CB &apos;2.8802048165672836
+|    |    |    |    |    |    |    |    |    |    |    |    &apos; CG &apos;-2.2440289605396755
+|    |    |    |    |    |    |    |    |    |    |    |    |    &apos; CD &apos;-3.0243046976243777
+|    |    |    |    |    |    |    |    |    |    |    |    |    |    &apos; OE1&apos;-0.026364957093113754
+|    |    |    |    |    |    |    |    |    |    |    |    |    |    &apos; OE2&apos;3.1156169700846288
+|    |    |    |    |    |    |    |    &apos; CB &apos;2.0118329100797685
+|    |    |    |    |    |    |    |    |    &apos; OG &apos;-2.6541282521764211
+|    |    |    |    |    &apos; CB &apos;2.8029336349310716
+|    |    |    |    |    |    &apos; CG &apos;-3.1265380875161384
+|    |    &apos; CB &apos;None
+|    |    |    &apos; CG &apos;-2.1039093285169477
+|    |    |    |    &apos; ND1&apos;-1.4025201251363917
+|    |    |    |    |    &apos; CE1&apos;3.1068156349871994
+|    |    |    |    &apos; CD2&apos;1.69600931102484
+|    |    |    |    |    &apos; NE2&apos;-3.1033933943345584
 
 
 </pre>
@@ -2129,11 +2160,11 @@ In&nbsp;[234]:
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
 <div class="prompt input_prompt">
-In&nbsp;[235]:
+In&nbsp;[724]:
 </div>
 <div class="inner_cell">
     <div class="input_area">
-<div class="highlight"><pre><span class="k">def</span> <span class="nf">nerf</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">B</span><span class="p">,</span><span class="n">C</span><span class="p">,</span><span class="n">R</span><span class="p">,</span><span class="n">theta</span><span class="p">,</span><span class="n">phi</span><span class="p">,</span><span class="n">lbc</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">):</span>
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">nerf</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">B</span><span class="p">,</span><span class="n">C1</span><span class="p">,</span><span class="n">C2</span><span class="p">,</span><span class="n">C3</span><span class="p">,</span><span class="n">R</span><span class="p">,</span><span class="n">phi</span><span class="p">,</span><span class="n">theta</span><span class="p">,</span><span class="n">lbc</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="n">D</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    An implementation of the Natural Extension Reference Frame (NeRF) algorithm</span>
 <span class="sd">    http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.83.8235&amp;rep=rep1&amp;type=pdf</span>
@@ -2142,34 +2173,38 @@ In&nbsp;[235]:
 <span class="sd">      A,B,C(double[]): absolute coordinates of the three previous points</span>
 <span class="sd">                       (ancestor, ancestor of the ancestor, ...)</span>
 <span class="sd">      R(double):       distance to the ancestor</span>
-<span class="sd">      theta(double):   dihedral angle of the planes given by (A,B,C) and (B,C,D)</span>
 <span class="sd">      phi(double):     bond angle of (B,C,D)</span>
+<span class="sd">      theta(double):   dihedral angle of the planes given by (A,B,C) and (B,C,D)</span>
 <span class="sd">      lbc(double,optional): distance of B and C</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">      D(double[]): returns absolute coordinates given the above mentioned internal</span>
 <span class="sd">        coordinates and the absolute coordinates of the previous points</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="n">cosphi</span>    <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">phi</span><span class="p">)</span>
-    <span class="n">sinphi</span>    <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">phi</span><span class="p">)</span>
-    <span class="n">Rcostheta</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span><span class="o">*</span><span class="n">R</span>
-    <span class="n">Rsintheta</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span><span class="o">*</span><span class="n">R</span>
-
-    <span class="n">D</span>    <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="n">Rcostheta</span><span class="p">,</span> <span class="n">Rsintheta</span><span class="o">*</span><span class="n">cosphi</span><span class="p">,</span> <span class="n">Rsintheta</span><span class="o">*</span><span class="n">sinphi</span><span class="p">])</span>
-    <span class="n">D</span>    <span class="o">=</span> <span class="n">R</span><span class="o">*</span><span class="n">D</span>
-
-    <span class="n">BC</span>   <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">C</span><span class="p">)</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">B</span><span class="p">)</span>
+    <span class="n">C</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">C1</span><span class="p">,</span><span class="n">C2</span><span class="p">,</span><span class="n">C3</span><span class="p">])</span>
+    
+    <span class="c"># if torsion angles didn&#39;t change pass the NeRF algorithm&#39;s internal coordinates</span>
+    <span class="c"># as an argument so that they don&#39;t have to be recalculated</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">D</span><span class="p">:</span>
+        <span class="n">cosphi</span>   <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">phi</span><span class="p">)</span>
+        <span class="n">sinphi</span>   <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">phi</span><span class="p">)</span>
+        <span class="n">costheta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span>
+        <span class="n">sintheta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span>
+        <span class="n">D</span> <span class="o">=</span> <span class="n">R</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">cosphi</span><span class="p">,</span> <span class="n">sinphi</span><span class="o">*</span><span class="n">costheta</span><span class="p">,</span> <span class="n">sinphi</span><span class="o">*</span><span class="n">sintheta</span><span class="p">])</span>
+    
+    <span class="n">AB</span>   <span class="o">=</span> <span class="n">B</span><span class="o">-</span><span class="n">A</span>
+    <span class="n">BC</span>   <span class="o">=</span> <span class="n">C</span><span class="o">-</span><span class="n">B</span>
     <span class="n">lbc</span>  <span class="o">=</span> <span class="n">lbc</span> <span class="ow">or</span> <span class="n">la</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">BC</span><span class="p">)</span>
     <span class="n">bc</span>   <span class="o">=</span> <span class="n">BC</span><span class="o">/</span><span class="n">lbc</span>
-    <span class="n">AB</span>   <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">B</span><span class="p">)</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
-    <span class="n">N</span>    <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">AB</span><span class="p">,</span><span class="n">bc</span><span class="p">)</span>
-    <span class="n">n</span>    <span class="o">=</span> <span class="n">N</span><span class="o">/</span><span class="n">la</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">N</span><span class="p">)</span>
-    <span class="n">nxbc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">n</span><span class="p">,</span><span class="n">bc</span><span class="p">)</span>
+    <span class="n">n</span>    <span class="o">=</span> <span class="n">normalize</span><span class="p">(</span><span class="n">cross</span><span class="p">(</span><span class="n">AB</span><span class="p">,</span><span class="n">bc</span><span class="p">))</span>
+    <span class="n">nxbc</span> <span class="o">=</span> <span class="n">cross</span><span class="p">(</span><span class="n">n</span><span class="p">,</span><span class="n">bc</span><span class="p">)</span> <span class="c"># already normalized by construction</span>
 
     <span class="n">M</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">([</span><span class="n">bc</span><span class="p">,</span><span class="n">nxbc</span><span class="p">,</span><span class="n">n</span><span class="p">])</span>
-    <span class="n">D</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">M</span><span class="p">,</span><span class="n">D</span><span class="p">)</span><span class="o">+</span><span class="n">C</span>
-    
-    <span class="k">return</span> <span class="n">D</span>
+    <span class="n">relD</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">M</span><span class="p">,</span><span class="n">D</span><span class="p">)</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">relD</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">C1</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">relD</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">C2</span>
+    <span class="n">z</span> <span class="o">=</span> <span class="n">relD</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="n">C3</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">z</span><span class="p">]),</span> <span class="n">D</span><span class="p">]</span>
 </pre></div>
 
 </div>
@@ -2189,11 +2224,11 @@ In&nbsp;[235]:
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
 <div class="prompt input_prompt">
-In&nbsp;[236]:
+In&nbsp;[725]:
 </div>
 <div class="inner_cell">
     <div class="input_area">
-<div class="highlight"><pre><span class="k">def</span> <span class="nf">buildChildren</span><span class="p">(</span><span class="n">parent</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">B</span><span class="p">):</span>
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">buildChildren</span><span class="p">(</span><span class="n">parent</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">B</span><span class="p">,</span><span class="n">molecule</span><span class="p">,</span><span class="n">parentNodeChanged</span> <span class="o">=</span> <span class="bp">False</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A recursive method to traverse a tree-like structure and apply the NeRF</span>
 <span class="sd">    algorithm to every child. Also adds the calculated coordinates to the</span>
@@ -2204,12 +2239,37 @@ In&nbsp;[236]:
 <span class="sd">                     childrens&#39; absolute coordinates of</span>
 <span class="sd">      A,B(double[]): absolute coordinates of the two previous points</span>
 <span class="sd">                     (ancestor and ancestor of the ancestor)</span>
+<span class="sd">      molecule([]):  list of molecules</span>
+<span class="sd">      parentNodeChanged(Boolean): if the parent node&#39;s coordinates were</span>
+<span class="sd">                     updated some calculations don&#39;t need to be done again</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="n">C</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">coord</span>
     <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">parent</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
-        <span class="n">child</span><span class="o">.</span><span class="n">coord</span> <span class="o">=</span> <span class="n">nerf</span><span class="p">(</span><span class="n">A</span><span class="p">,</span><span class="n">B</span><span class="p">,</span><span class="n">C</span><span class="p">,</span><span class="n">child</span><span class="o">.</span><span class="n">dist</span><span class="p">,</span><span class="n">child</span><span class="o">.</span><span class="n">theta</span><span class="p">,</span><span class="n">child</span><span class="o">.</span><span class="n">phi</span><span class="p">,</span><span class="n">parent</span><span class="o">.</span><span class="n">dist</span><span class="p">)</span>
-        <span class="n">molecule</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">child</span><span class="o">.</span><span class="n">coord</span><span class="p">)</span>
-        <span class="n">buildChildren</span><span class="p">(</span><span class="n">child</span><span class="p">,</span><span class="n">B</span><span class="p">,</span><span class="n">C</span><span class="p">)</span>
+        
+        <span class="k">if</span> <span class="n">parentNodeChanged</span><span class="p">:</span>
+            <span class="c"># if dihedral angle wasn&#39;t updated, pass along the previous</span>
+            <span class="c"># interim result so NeRF() doesn&#39;t have to recalculate that part</span>
+            <span class="k">if</span> <span class="n">child</span><span class="o">.</span><span class="n">prevTheta</span> <span class="o">==</span> <span class="n">child</span><span class="o">.</span><span class="n">theta</span><span class="p">:</span>
+                <span class="n">child</span><span class="o">.</span><span class="n">coord</span><span class="p">,</span> <span class="n">child</span><span class="o">.</span><span class="n">prevD</span> <span class="o">=</span> <span class="n">nerf</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">A</span><span class="p">),</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">B</span><span class="p">),</span><span class="n">C</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">C</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">C</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="n">child</span><span class="o">.</span><span class="n">dist</span><span class="p">,</span><span class="n">child</span><span class="o">.</span><span class="n">phi</span><span class="p">,</span><span class="n">child</span><span class="o">.</span><span class="n">theta</span><span class="p">,</span><span class="n">parent</span><span class="o">.</span><span class="n">dist</span><span class="p">,</span><span class="n">child</span><span class="o">.</span><span class="n">prevD</span><span class="p">)</span>
+            <span class="c"># if it was updated, calculate everything</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">child</span><span class="o">.</span><span class="n">coord</span><span class="p">,</span> <span class="n">child</span><span class="o">.</span><span class="n">prevD</span> <span class="o">=</span> <span class="n">nerf</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">A</span><span class="p">),</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">B</span><span class="p">),</span><span class="n">C</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">C</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">C</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="n">child</span><span class="o">.</span><span class="n">dist</span><span class="p">,</span><span class="n">child</span><span class="o">.</span><span class="n">phi</span><span class="p">,</span><span class="n">child</span><span class="o">.</span><span class="n">theta</span><span class="p">,</span><span class="n">parent</span><span class="o">.</span><span class="n">dist</span><span class="p">)</span>
+            <span class="c"># as parentNodeChanged = True, call buildChildren()</span>
+            <span class="c"># with parentNodeChanged = True again</span>
+            <span class="n">buildChildren</span><span class="p">(</span><span class="n">child</span><span class="p">,</span><span class="n">B</span><span class="p">,</span><span class="n">C</span><span class="p">,</span><span class="n">molecule</span><span class="p">,</span><span class="bp">True</span><span class="p">)</span>
+        
+        <span class="c"># if the parent&#39;s absolute coordinates didn&#39;t change</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c"># if dihedral angle wasn&#39;t updated its coordinates stay the same</span>
+            <span class="k">if</span> <span class="n">child</span><span class="o">.</span><span class="n">prevTheta</span> <span class="o">==</span> <span class="n">child</span><span class="o">.</span><span class="n">theta</span><span class="p">:</span>
+                <span class="n">buildChildren</span><span class="p">(</span><span class="n">child</span><span class="p">,</span><span class="n">B</span><span class="p">,</span><span class="n">C</span><span class="p">,</span><span class="n">molecule</span><span class="p">,</span><span class="bp">False</span><span class="p">)</span>
+            <span class="c"># if dihedral angle was updated, calculate stuff</span>
+            <span class="c"># and call buildChildren() with parentNodeChanged = True</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">child</span><span class="o">.</span><span class="n">coord</span><span class="p">,</span> <span class="n">child</span><span class="o">.</span><span class="n">prevD</span> <span class="o">=</span> <span class="n">nerf</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">A</span><span class="p">),</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">B</span><span class="p">),</span><span class="n">C</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">C</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="n">C</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="n">child</span><span class="o">.</span><span class="n">dist</span><span class="p">,</span><span class="n">child</span><span class="o">.</span><span class="n">phi</span><span class="p">,</span><span class="n">child</span><span class="o">.</span><span class="n">theta</span><span class="p">,</span><span class="n">parent</span><span class="o">.</span><span class="n">dist</span><span class="p">)</span>
+                <span class="n">buildChildren</span><span class="p">(</span><span class="n">child</span><span class="p">,</span><span class="n">B</span><span class="p">,</span><span class="n">C</span><span class="p">,</span><span class="n">molecule</span><span class="p">,</span><span class="bp">True</span><span class="p">)</span>
+            
+        <span class="n">molecule</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">child</span><span class="o">.</span><span class="n">coord</span><span class="p">,</span> <span class="n">child</span><span class="o">.</span><span class="n">atomname</span><span class="p">[</span><span class="mi">1</span><span class="p">]])</span>
 </pre></div>
 
 </div>
@@ -2229,51 +2289,53 @@ In&nbsp;[236]:
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
 <div class="prompt input_prompt">
-In&nbsp;[247]:
+In&nbsp;[726]:
 </div>
 <div class="inner_cell">
     <div class="input_area">
-<div class="highlight"><pre><span class="c"># define it globally so that `buildChildren()` has access</span>
-<span class="n">molecule</span> <span class="o">=</span> <span class="p">[]</span>
-
-<span class="k">def</span> <span class="nf">buildMolecule</span><span class="p">(</span><span class="n">S</span><span class="p">,</span><span class="n">alpha</span><span class="p">,</span><span class="n">beta</span><span class="p">,</span><span class="n">node</span><span class="p">):</span>
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">buildMolecule</span><span class="p">(</span><span class="n">S</span><span class="p">,</span><span class="n">eAngles</span><span class="p">,</span><span class="n">node</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Given some node instance like described above this</span>
 <span class="sd">    function returns a list of coordinates (e.g. [[S_1,S_2,S_3],[a,b,c],...])</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">      S(double[]):   starting point, e.g. [2,3,4]</span>
-<span class="sd">      alpha(double): angle the whole system gets rotated about around the Z-axis</span>
-<span class="sd">      beta(double):  angle the whole system gets rotated about in the XZ-plane</span>
-<span class="sd">      node(Node):    a Node instance storing the molecule&#39;s data in a</span>
-<span class="sd">                     tree-like structure</span>
+<span class="sd">      S(double[]):       starting point, e.g. [2,3,4]</span>
+<span class="sd">      eAngles(double[]): Euler angles; the whole system gets rotated about</span>
+<span class="sd">                         around the X-axis by eAngles[0], around the Y-axis</span>
+<span class="sd">                         by eAngles[1] and around the Z-axis by eAngles[2]</span>
+<span class="sd">      node(Node):        a Node instance storing the molecule&#39;s data in a</span>
+<span class="sd">                         tree-like structure</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">      molecule(double[][]): a list of triples of coordinates</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-
+    <span class="n">molecule</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">A</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">coord</span>
 
     <span class="c"># initiate the molecule</span>
-    <span class="n">molecule</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">A</span><span class="p">))</span>
-
-    <span class="c"># usually the first atom (an N) only has one descendant (a CA), but just to</span>
-    <span class="c"># keep the code flexible pretend there may be more.</span>
+    <span class="n">molecule</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">A</span><span class="p">),</span> <span class="s">&quot;N&quot;</span><span class="p">])</span>
+    <span class="c"># initiate rotation matrizes</span>
+    <span class="n">sinEA</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">eAngles</span><span class="p">)</span>
+    <span class="n">cosEA</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">eAngles</span><span class="p">)</span>
+    <span class="n">Rx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">0</span><span class="p">,</span><span class="n">cosEA</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">sinEA</span><span class="p">[</span><span class="mi">0</span><span class="p">]],[</span><span class="mi">0</span><span class="p">,</span><span class="o">-</span><span class="n">sinEA</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="n">cosEA</span><span class="p">[</span><span class="mi">0</span><span class="p">]]])</span>
+    <span class="n">Ry</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">cosEA</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="mi">0</span><span class="p">,</span><span class="n">sinEA</span><span class="p">[</span><span class="mi">1</span><span class="p">]],[</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="o">-</span><span class="n">sinEA</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span><span class="mi">0</span><span class="p">,</span><span class="n">cosEA</span><span class="p">[</span><span class="mi">1</span><span class="p">]]])</span>
+    <span class="n">Rz</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">cosEA</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="n">sinEA</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="mi">0</span><span class="p">],[</span><span class="o">-</span><span class="n">sinEA</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="n">cosEA</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span><span class="mi">0</span><span class="p">],[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">1</span><span class="p">]])</span>
+    
+    <span class="c"># usually the first atom (an N) only has one descendant (a CA),</span>
+    <span class="c"># but just to keep the code flexible pretend there may be more.</span>
     <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>             <span class="c"># ii  are 2nd level (e.g. CA)</span>
         <span class="n">B</span> <span class="o">=</span> <span class="n">ii</span><span class="o">.</span><span class="n">coord</span>
-        <span class="n">molecule</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">B</span><span class="p">))</span>
+        <span class="n">molecule</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">B</span><span class="p">),</span> <span class="s">&quot;C&quot;</span><span class="p">])</span>
         <span class="k">for</span> <span class="n">iii</span> <span class="ow">in</span> <span class="n">ii</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>          <span class="c"># iii are 3rd level (e.g. C or CB)</span>
             <span class="n">C</span> <span class="o">=</span> <span class="n">iii</span><span class="o">.</span><span class="n">coord</span>
-            <span class="n">molecule</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">C</span><span class="p">))</span>
-            <span class="n">buildChildren</span><span class="p">(</span><span class="n">iii</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">B</span><span class="p">)</span>
+            <span class="n">molecule</span><span class="o">.</span><span class="n">append</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">C</span><span class="p">),</span> <span class="s">&quot;C&quot;</span><span class="p">])</span>
+            <span class="n">buildChildren</span><span class="p">(</span><span class="n">iii</span><span class="p">,</span><span class="n">A</span><span class="p">,</span><span class="n">B</span><span class="p">,</span><span class="n">molecule</span><span class="p">)</span>
 
     <span class="k">for</span> <span class="n">atom</span> <span class="ow">in</span> <span class="n">molecule</span><span class="p">:</span>
-    <span class="c">#    Ra = [[],[],[]]</span>
-    <span class="c">#    Rb = [[],[],[]]</span>
-    <span class="c">#    </span>
-    <span class="c">#    atom = np.dot(Ra,atom)</span>
-    <span class="c">#    atom = np.dot(Rb,atom)</span>
-        <span class="n">atom</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">atom</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">S</span><span class="p">)</span>
+        <span class="n">atom</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">Rx</span><span class="p">,</span><span class="n">atom</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">atom</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">Ry</span><span class="p">,</span><span class="n">atom</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">atom</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">Rz</span><span class="p">,</span><span class="n">atom</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">atom</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">atom</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">S</span><span class="p">)</span>
     
     <span class="k">return</span> <span class="n">molecule</span>
 </pre></div>
@@ -2286,11 +2348,12 @@ In&nbsp;[247]:
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
 <div class="prompt input_prompt">
-In&nbsp;[248]:
+In&nbsp;[727]:
 </div>
 <div class="inner_cell">
     <div class="input_area">
-<div class="highlight"><pre><span class="n">buildMolecule</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="n">tree</span><span class="p">)</span> <span class="c"># currently something seems to be wrong with the NeRF implementation or with `buildChildren()`</span>
+<div class="highlight"><pre><span class="n">molecule</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">buildMolecule</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span><span class="n">tree</span><span class="p">)</span>
 </pre></div>
 
 </div>
@@ -2302,47 +2365,101 @@ In&nbsp;[248]:
 
 
 <div class="output_area"><div class="prompt output_prompt">
-    Out[248]:</div>
+    Out[727]:</div>
 
 
 <div class="output_text output_subarea output_pyout">
 <pre>
-[array([ 61.987,  17.588,  10.212]),
- array([ 61.158,  16.381,  10.442]),
- array([ 61.971,  15.098,  10.569]),
- array([ 61.76167726,  14.36853979,  11.90123407]),
- array([ 61.87528559,  14.36054115,  12.15886401]),
- array([ 61.35773501,  12.03505507,  12.33138203]),
- array([ 62.76752633,   9.72598271,  13.24786185]),
- array([ 61.5891989 ,   8.48652038,  14.34308996]),
- array([ 61.5704447 ,   8.43440702,  14.66725199]),
- array([ 61.51513358,   5.59303891,  14.49606217]),
- array([ 61.90905556,   3.03811245,  16.70684102]),
- array([ 60.66708102,   0.92424901,  16.64227076]),
- array([ 60.443334  ,   0.81661717,  16.89155611]),
- array([ 61.58439054,  -2.07103697,  17.52304529]),
- array([ 60.89610705,  -4.78407578,  19.78086188]),
- array([ 61.14745363,  -7.11472417,  19.08698194]),
- array([ 60.92643914,  -4.78431889,  19.80241256]),
- array([ 60.82625988,  -8.08248695,  18.85176697]),
- array([ 62.31408371, -10.74909017,  20.4001277 ]),
- array([ 61.28772178, -12.9594669 ,  20.61584597]),
- array([ 61.30242961, -12.91680706,  20.65816733]),
- array([ 62.11500128,   3.04046167,  16.53781123]),
- array([ 60.38681104,   0.95243603,  16.85357982]),
- array([ 62.79496699,   9.65782975,  13.49952195]),
- array([ 61.28830395,   7.72388259,  15.35595105]),
- array([ 60.139,  16.217,   9.336]),
- array([ 60.57776517,  14.4121327 ,   8.13599299]),
- array([ 58.83001627,  12.96184947,   7.6124012 ]),
- array([ 57.9148512 ,  12.20266866,   5.69122036]),
- array([ 58.74292312,  13.15000748,   7.36972629]),
- array([ 57.46202796,  12.27448041,   5.19758731])]
+[[array([ 61.987,  17.588,  10.212]), &apos;N&apos;],
+ [array([ 61.158,  16.381,  10.442]), &apos;C&apos;],
+ [array([ 61.971,  15.098,  10.569]), &apos;C&apos;],
+ [array([ 61.595,  14.04 ,  10.047]), &apos;O&apos;],
+ [array([ 63.559,  12.17 ,  12.823]), &apos;O&apos;],
+ [array([ 59.936,  14.858,  14.572]), &apos;O&apos;],
+ [array([ 56.877,  14.022,  16.223]), &apos;O&apos;],
+ [array([ 57.807,  13.213,  16.218]), &apos;C&apos;],
+ [array([ 56.458,   8.815,  14.378]), &apos;O&apos;],
+ [array([ 55.16 ,   9.507,  12.75 ]), &apos;O&apos;],
+ [array([ 56.065,   9.704,  13.588]), &apos;C&apos;],
+ [array([ 56.709,  11.085,  13.641]), &apos;C&apos;],
+ [array([ 57.771,  11.204,  14.728]), &apos;C&apos;],
+ [array([ 58.31 ,  12.626,  14.902]), &apos;C&apos;],
+ [array([ 59.764,  12.624,  14.858]), &apos;N&apos;],
+ [array([ 60.462,  13.744,  14.692]), &apos;C&apos;],
+ [array([ 62.48 ,  13.336,  17.034]), &apos;O&apos;],
+ [array([ 62.568,  14.209,  15.928]), &apos;C&apos;],
+ [array([ 61.98 ,  13.573,  14.668]), &apos;C&apos;],
+ [array([ 62.628,  14.124,  13.479]), &apos;N&apos;],
+ [array([ 63.371,  13.373,  12.668]), &apos;C&apos;],
+ [array([ 66.406,  13.517,  12.119]), &apos;C&apos;],
+ [array([ 65.384,  14.612,  11.845]), &apos;C&apos;],
+ [array([ 63.979,  14.101,  11.499]), &apos;C&apos;],
+ [array([ 63.106,  15.222,  11.241]), &apos;N&apos;],
+ [array([ 60.139,  16.217,   9.336]), &apos;C&apos;],
+ [array([ 56.908,  15.424,  10.765]), &apos;C&apos;],
+ [array([ 58.133,  15.112,  10.386]), &apos;N&apos;],
+ [array([ 56.686,  16.685,  10.476]), &apos;N&apos;],
+ [array([ 57.813,  17.218,   9.885]), &apos;C&apos;],
+ [array([ 58.735,  16.223,   9.826]), &apos;C&apos;]]
 </pre>
 </div>
 
 </div>
 
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="determining-lennard-jones-parameters">Determining Lennard-Jones parameters</h2>
+<p>Choose parameters <span class="math">\(\bar\Theta = ((C-C)_\varepsilon, (C-N)_\varepsilon, \dots, (C-C)_\delta, (C-N)_\delta, \dots)\)</span> of Lennard-Jones potential such that <span class="math">\(\bar\Theta = \text{argmin}_\Theta \sum_a \|\nabla_x V(a,\Theta,x_{\text{PDB}(a)})\|^2\)</span>, where <span class="math">\(V\)</span> is the Lennard-Jones potential of the entire system, consisting of the flexible molecule <span class="math">\(a\)</span> and <span class="math">\(x = (S,\text{EulerAngles},\text{dihedralAngles})\)</span> are the internal coordinates. The intention behind choosing <span class="math">\(\bar\Theta\)</span> as <span class="math">\(\text{argmin}_\Theta \sum_a \|\nabla_x V(a,\Theta,x_{\text{PDB}(a)})\|^2\)</span> is that the protein as it is given in its PDB file is in an equilibrium state and thus <span class="math">\(\nabla_x V(a,\Theta,x_{\text{PDB}(a)})\)</span> should be zero if <span class="math">\(\Theta\)</span> is chosen correctly.</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<p>Starte <span class="math">\(\varepsilon\)</span> mit 5-6Å und <span class="math">\(\delta\)</span> s.t. bei 10Å schon deutlich über Wendepunkt ist</p>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[728]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="c"># list for indexing purposes</span>
+<span class="n">elements</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;N&quot;</span><span class="p">,</span> <span class="s">&quot;C&quot;</span><span class="p">,</span> <span class="s">&quot;O&quot;</span><span class="p">]</span>
+
+<span class="c"># parameters for different materials for the LJ potential</span>
+<span class="c"># just initiate it with random values</span>
+<span class="n">epsilons</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">[</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">],</span> <span class="c"># N-N, N-C, N-O, N-rest</span>
+            <span class="p">[</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">],</span> <span class="c"># C-N, C-C, C-O, C-rest</span>
+            <span class="p">[</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">],</span> <span class="c"># O-N, O-C, O-O, O-rest</span>
+            <span class="p">[</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">]</span>  <span class="c"># rest-N, rest-C, rest-O, rest-rest</span>
+<span class="p">]</span>
+
+<span class="c"># parameters for different materials for the LJ potential</span>
+<span class="c"># just initiate it with random values</span>
+<span class="n">deltas</span>   <span class="o">=</span> <span class="p">[</span>
+            <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span>
+            <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span>
+            <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span>
+            <span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">]</span>
+<span class="p">]</span>
+<span class="n">LJargs</span> <span class="o">=</span> <span class="p">[</span><span class="n">epsilons</span><span class="p">,</span> <span class="n">deltas</span><span class="p">]</span>
+</pre></div>
+
+</div>
 </div>
 </div>
 
@@ -2359,24 +2476,38 @@ In&nbsp;[248]:
 <div class="cell border-box-sizing code_cell rendered">
 <div class="input">
 <div class="prompt input_prompt">
-In&nbsp;[]:
+In&nbsp;[729]:
 </div>
 <div class="inner_cell">
     <div class="input_area">
-<div class="highlight"><pre><span class="k">def</span> <span class="nf">LJ</span><span class="p">(</span><span class="n">r2</span><span class="p">):</span>
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">LJ</span><span class="p">(</span><span class="n">r2</span><span class="p">,</span><span class="n">el1</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="n">el2</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Lennard-Jones potential for a given distance r^2</span>
 <span class="sd">    </span>
 <span class="sd">    Args:</span>
 <span class="sd">      r2(double): Squared distance between two particles</span>
 <span class="sd">                  whose LJ-potential should be calculated</span>
+<span class="sd">      el1,el2(String): chemical element</span>
 <span class="sd">    </span>
 <span class="sd">    Returns:</span>
 <span class="sd">      U(double):  Potential as a function of r2</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">el1</span> <span class="ow">in</span> <span class="n">elements</span><span class="p">:</span>
+        <span class="n">el1_index</span> <span class="o">=</span> <span class="n">elements</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">el1</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">el1_index</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">elements</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">el2</span> <span class="ow">in</span> <span class="n">elements</span><span class="p">:</span>
+        <span class="n">el2_index</span> <span class="o">=</span> <span class="n">elements</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">el2</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">el2_index</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">elements</span><span class="p">)</span>
+    <span class="n">eps</span> <span class="o">=</span> <span class="n">LJargs</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">el1_index</span><span class="p">][</span><span class="n">el2_index</span><span class="p">]</span>
+    <span class="n">rm6</span> <span class="o">=</span> <span class="n">LJargs</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="n">el1_index</span><span class="p">][</span><span class="n">el2_index</span><span class="p">]</span>
+    
     <span class="n">ir2</span>  <span class="o">=</span> <span class="mf">1.0</span><span class="o">/</span><span class="n">r2</span> <span class="c"># (r^2)^-1</span>
     <span class="n">ir6</span>  <span class="o">=</span> <span class="n">ir2</span><span class="o">**</span><span class="mi">3</span> <span class="c"># (r^6)^-1</span>
     <span class="n">ir12</span> <span class="o">=</span> <span class="n">ir6</span><span class="o">**</span><span class="mi">2</span> <span class="c"># (r^12)^-1</span>
+    
+    <span class="n">rm12</span> <span class="o">=</span> <span class="n">rm6</span><span class="o">**</span><span class="mi">2</span>
 
     <span class="k">return</span> <span class="n">eps</span><span class="o">*</span><span class="p">(</span><span class="n">rm12</span><span class="o">*</span><span class="n">ir12</span> <span class="o">-</span> <span class="mi">2</span><span class="o">*</span><span class="n">rm6</span><span class="o">*</span><span class="n">ir6</span><span class="p">)</span>
 
@@ -2395,13 +2526,196 @@ In&nbsp;[]:
 <span class="sd">    Returns:</span>
 <span class="sd">      U(double):            Potential for the entire system, minus the potential of</span>
 <span class="sd">                            fixedMol alone (which is constant anyways)</span>
-<span class="sd">      grad(double[]):       (dU/dS,dU/dalpha,dU/dbeta,dU/theta_1,dU/theta_2,...) where</span>
-<span class="sd">                            theta_i are the flexible molecule&#39;s dihedral angles</span>
-<span class="sd">                            ordered by variance, S its point of reference and</span>
-<span class="sd">                            alpha, beta its global rotations.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">flexMolPot</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">intermolecularPot</span> <span class="o">=</span> <span class="mi">0</span>
     
-    <span class="c"># yet to be implemented</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">flexMol</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span><span class="n">n</span><span class="p">):</span>
+            <span class="n">flexMolPot</span> <span class="o">=</span> <span class="n">flexMolPot</span> <span class="o">+</span> <span class="n">LJ</span><span class="p">(</span><span class="n">la</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">flexMol</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">flexMol</span><span class="p">[</span><span class="n">j</span><span class="p">][</span><span class="mi">0</span><span class="p">])),</span><span class="n">flexMol</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span><span class="n">flexMol</span><span class="p">[</span><span class="n">j</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+    
+    <span class="c">#for fixedAtom in fixedMol:</span>
+    <span class="c">#    for flexAtom in flexMol:</span>
+    <span class="c">#        intermolecularPot = intermolecularPot + LJ(la.norm(np.array(flexAtom[0]) - np.array(fixedAtom[0])),flexAtom[1],fixedAtom[1])</span>
+            
+    <span class="c"># ignore adjacent nodes ~ hard to implement with the current implementation</span>
+    <span class="c"># potential depends on elements ~ according to http://en.wikipedia.org/wiki/Lennard-Jones_potential</span>
+    <span class="c">#                                 those parameters are simply set to unity (?)</span>
+    
+    <span class="k">return</span> <span class="n">flexMolPot</span> <span class="o">+</span> <span class="n">intermolecularPot</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing text_cell rendered">
+<div class="prompt input_prompt">
+</div>
+<div class="inner_cell">
+<div class="text_cell_render border-box-sizing rendered_html">
+<h2 id="auxiliary-functions-for-updating-the-dihedral-angles">Auxiliary functions for updating the dihedral angles</h2>
+</div>
+</div>
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[730]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="k">def</span> <span class="nf">listify</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">tList</span><span class="p">):</span>
+    <span class="n">tList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
+        <span class="n">listify</span><span class="p">(</span><span class="n">child</span><span class="p">,</span><span class="n">tList</span><span class="p">)</span>
+        
+<span class="k">def</span> <span class="nf">createThetaList</span><span class="p">(</span><span class="n">tList</span><span class="p">):</span>
+    <span class="n">thetaList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">tList</span><span class="p">:</span>
+        <span class="n">thetaList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">theta</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">thetaList</span>
+
+<span class="k">def</span> <span class="nf">updateThetas</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span><span class="n">thetaList</span><span class="p">):</span>
+    <span class="n">tList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">listify</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span><span class="n">tList</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">thetaList</span><span class="p">)):</span>
+        <span class="n">tList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">theta</span> <span class="o">=</span> <span class="n">thetaList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+
+<span class="c">##########</span>
+<span class="c"># SAMPLE #</span>
+<span class="c">##########</span>
+<span class="c">#tList = []</span>
+<span class="c">#listify(tree,tList)</span>
+<span class="c">#thetaList = createThetaList(tList)</span>
+<span class="c">#thetaList[3] = 2 # O is the third object</span>
+<span class="c">#updateThetas(tree,thetaList)</span>
+<span class="c">#print tree.children[0].children[0].children[0].theta</span>
+<span class="c"># ^-- prints 2, as tree.children[0].children[0].children[0] is O</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[731]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="c"># TODO: load fixed molecule from a PDB file</span>
+<span class="n">fixedMol</span> <span class="o">=</span> <span class="n">buildMolecule</span><span class="p">([</span><span class="o">-</span><span class="mi">100</span><span class="p">,</span><span class="o">-</span><span class="mi">10</span><span class="p">,</span><span class="o">-</span><span class="mi">10</span><span class="p">],[</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">],</span><span class="n">tree</span><span class="p">)</span>
+<span class="c"># TODO: determine which dihedral angles to choose</span>
+<span class="n">anglesToUpdate</span> <span class="o">=</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span><span class="mi">5</span><span class="p">]</span>
+
+<span class="k">def</span> <span class="nf">objective</span><span class="p">(</span><span class="n">params</span><span class="p">):</span>
+    <span class="n">S</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">3</span><span class="p">]</span>
+    <span class="n">eAngles</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span>
+    <span class="n">dihedralAngles</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="mi">6</span><span class="p">:]</span>
+    
+    <span class="n">tList</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">listify</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span><span class="n">tList</span><span class="p">)</span>
+    <span class="n">thetaList</span> <span class="o">=</span> <span class="n">createThetaList</span><span class="p">(</span><span class="n">tList</span><span class="p">)</span>
+    <span class="n">j</span><span class="o">=</span><span class="mi">0</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">anglesToUpdate</span><span class="p">:</span>
+        <span class="n">thetaList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">dihedralAngles</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
+        <span class="n">j</span> <span class="o">=</span> <span class="n">j</span><span class="o">+</span><span class="mi">1</span>
+    <span class="n">updateThetas</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span><span class="n">thetaList</span><span class="p">)</span>
+    
+    <span class="n">flexMol</span> <span class="o">=</span> <span class="n">buildMolecule</span><span class="p">(</span><span class="n">S</span><span class="p">,</span><span class="n">eAngles</span><span class="p">,</span><span class="n">tree</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">VLJ</span><span class="p">(</span><span class="n">fixedMol</span><span class="p">,</span> <span class="n">flexMol</span><span class="p">)</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[732]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">vg</span> <span class="o">=</span> <span class="n">value_and_grad</span><span class="p">(</span><span class="n">objective</span><span class="p">)</span>
+<span class="p">(</span><span class="n">objective</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="o">-</span><span class="mf">10.0</span><span class="p">,</span><span class="mf">10.0</span><span class="p">,</span><span class="mf">10.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span><span class="mf">2.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.3</span><span class="o">+</span><span class="mf">0.0001</span><span class="p">,</span><span class="o">-</span><span class="mf">2.5</span><span class="p">]))</span><span class="o">-</span><span class="n">objective</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="o">-</span><span class="mf">10.0</span><span class="p">,</span><span class="mf">10.0</span><span class="p">,</span><span class="mf">10.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span><span class="mf">2.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.3</span><span class="o">-</span><span class="mf">0.0001</span><span class="p">,</span><span class="o">-</span><span class="mf">2.5</span><span class="p">])))</span><span class="o">/</span><span class="mf">0.0002</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt output_prompt">
+    Out[732]:</div>
+
+
+<div class="output_text output_subarea output_pyout">
+<pre>
+0.25801175979722757
+</pre>
+</div>
+
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[733]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre><span class="n">vg</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="o">-</span><span class="mf">10.0</span><span class="p">,</span><span class="mf">10.0</span><span class="p">,</span><span class="mf">10.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span><span class="mf">2.0</span><span class="p">,</span><span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">2.3</span><span class="p">,</span><span class="o">-</span><span class="mf">2.5</span><span class="p">]))</span>
+</pre></div>
+
+</div>
+</div>
+</div>
+
+<div class="output_wrapper">
+<div class="output">
+
+
+<div class="output_area"><div class="prompt output_prompt">
+    Out[733]:</div>
+
+
+<div class="output_text output_subarea output_pyout">
+<pre>
+(-149.6610160619644,
+ array([ -8.88178420e-16,  -7.10542736e-15,  -2.66453526e-15,
+          6.03961325e-14,   1.70530257e-13,  -1.56319402e-13,
+          2.58011761e-01,   6.63019379e-01]))
+</pre>
+</div>
+
+</div>
+
+</div>
+</div>
+
+</div>
+<div class="cell border-box-sizing code_cell rendered">
+<div class="input">
+<div class="prompt input_prompt">
+In&nbsp;[]:
+</div>
+<div class="inner_cell">
+    <div class="input_area">
+<div class="highlight"><pre> 
 </pre></div>
 
 </div>
