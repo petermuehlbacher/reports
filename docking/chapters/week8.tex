@@ -1,0 +1,67 @@
+\subsection{New Data Structure}
+As the progress of the implementation went on it got more and more apparent that the recursive, tree-like structure was not the way to go. Direct access to certain nodes was only possible by traversing all its ancestors or creating and maintaining another, linearised data structure (i.e. a list for each relevant property).
+
+As a result, not only the problem with Python and its limitations when it comes to depth of recursions disappear, but calculations speed up considerably and there is no need to maintain a second, linearised structure.
+
+The new data structure looks like this:
+
+\texttt{mol = [atomnames,X,Y,Z,phis,thetas,dists,children]}, where \texttt{atomnames} is a list of atomnames as they are given in the PDB file, i.e. \texttt{atomnames[0]=" N  "}, \texttt{atomnames[1]=" CA "}, etc., \texttt{X[i],Y[i],Z[i]} are $i$-th atom's coordinates, \texttt{phis[i]} the bond angles between the $(i-2)$-th, the $(i-1)$-th and $i$-th atom, \texttt{thetas[i]} the dihedral angle between the dihedral angle between the $(i-3)$-th, the $(i-2)$-th, the $(i-1)$-th and $i$-th atom, \texttt{dists[i]} the distance between the $(i-1)$-th and $i$-th atom and \texttt{children[i]} a list of indices of atoms that are ``children'' of the $i$-th atom.
+In this paragraph the $(i-1)$-th atom refers to the $i$-th atom's parent, the $(i-2)$-th atom to the parent of the $i$-th atom's parent, etc.
+
+\subsection{New Lennard-Jones Potential}
+Instead of using $\text{LJ}_{\varepsilon,\sigma}(r) = \varepsilon \left(\left(\frac{\sigma}{r}\right)^{12} - 2 \left(\frac{\sigma}{r}\right)^6\right)$ I decided to go with
+
+$$\text{LJ}_{A,B}(r) = \frac{A}{r^{12}}-\frac{B}{r^6}+C$$
+
+which is computationally more efficient, thus easier to optimize and (bar the constant $C$ which will be dealt with later) is connected to the previously used parameters $\varepsilon,\sigma$ as follows:
+
+$\varepsilon$ being the depth of the potential well, $r_m$ the distance at which the potential reaches its minimum (i.e. $LJ(r_m)=-\varepsilon$ and $\sigma$ the distance at which the inter-particle potential is zero (i.e. $LJ(\sigma)=0$ for the first time), then
+
+$$A = 4\varepsilon\sigma^{12},$$
+$$B = 4\varepsilon\sigma^6,$$
+
+or alternatively:
+
+$$\varepsilon = \frac{B^2}{4A},$$
+$$\sigma = \sqrt[6]{\frac{A}{B}},$$
+$$r_m = \sqrt[6]{2}\sigma.$$
+
+As such $A$ may be regarded as the strength of the Pauli-repulsion and $B$ as the attractive long-range term.
+
+The constant $C$ is chosen such that, for varying $A,B$ (which happens when trying to find the optimal set of parameters (c.f. next subsection) $\text{LJ}_{A,B}(r) > 0\, \forall r>0,(A,B)\in \text{parameter space}$ (for reasons being explained in the next subsection).
+
+\subsection{Finding Parameters for the Lennard-Jones Potential}
+As electrostatic, bond, angle and dihedral forces are not included in this simulation they have to be accounted for by choosing the parameters of the Lennard-Jones potential in a way.
+
+\subsubsection{Casting it as an Optimization Problem}
+The general idea is that proteins, as they are given in PDB files, are approximately in an equilibrium state; this translates to $$\|\nabla_X \text{VLJ}(a_\text{PDB},X_a)\| \approx 0,$$
+
+where $a_\text{PDB}$ is the protein as it is given in its PDB file with internal coordinates $X$, consisting of the dihedral angles\footnote{Note that the potential is invariant under spacial translations and rotations, so they are not taken into account for.} and VLJ is the Lennard-Jones potential of $a_\text{PDB}$ as defined in week 2.
+
+$A,B$ depends on the material, so: $A = A(\text{el1},\text{el2})$, $B = B(\text{el1},\text{el2})$ which turns $LJ(r)$ into $LJ(r,\text{el1},\text{el2})$, where el1,el2 $\in$ \{N,C,CA,O,Rest\} $=: I$.
+
+Thus it seems natural to set the set of optimal parameters $\Theta := ((A_{ij})_{(i,j)\in I^2},(B_{ij})_{(i,j)\in I^2})$ to
+
+$$\Theta = \text{argmin}_\Theta \sum_{a_\text{PDB}} \frac{\| \nabla_X \text{VLJ}_\Theta(a_\text{PDB},X_a) \|}{| \text{VLJ}_\Theta(a_\text{PDB},X_a) |},$$
+
+where the division through $| \text{VLJ}_\Theta(a_\text{PDB},X_a) |$ serves to purpose of normalizing so that this procedure doesn't yield the trivial parameters $\Theta$ equals zero for all entries.
+
+Note that the $+C$ above is necessary to avoid systems with negative potential $-V, V>0$ which cannot be differentiated from systems that are far more unstable, but whose absolute value is the same (i.e. a system with potential $+V$).
+
+For a good initial guess I decided to set $A_{i,j} = A_{k,l}$ and $B_{i,j} = B_{k,l}$ for all $i,j,k,l \in I$ to simplify a brute force approach by reducing it from a $\frac{|I|(|I|+1)}{2}$-dimensional optimisation problem to a 2-dimensional one.
+
+By using reverse automatic differentiation the calculation of the gradient only results in about the double amount of time that is needed to calculate the value itself. On my laptop one evaluation of $\frac{\| \nabla_X \text{VLJ}_\Theta(a_\text{PDB},X_a) \|}{| \text{VLJ}_\Theta(a_\text{PDB},X_a)|}$ takes approximately one second which makes brute forcing in more than two dimensions impossible pretty fast.
+
+So the current approach is:
+
+\begin{itemize}
+	\item set $A = A_{ij}$ and $B = B_{ij}$ and choose them as $$(A,B) = \text{argmin}_{A,B} \sum_{a_\text{PDB}} \frac{\| \nabla_X \text{VLJ}_{A,B}(a_\text{PDB},X_a) \|}{| \text{VLJ}_{A,B}(a_\text{PDB},X_a) |}.$$
+	\item use them as initial guess for some optimisation algorithm like gradient descent which works in a reasonable amount of time even in $\frac{|I|(|I|+1)}{2}$ dimensions.
+\end{itemize}
+
+\subsection{Using the AutoGrad Library}
+\subsubsection{Using a Library versus Manually Implementing Reverse Automatic Differentiation}
+
+\subsubsection{Common Pitfalls Using AutoGrad}
+
+
