@@ -47,7 +47,7 @@
 
 \begin{itemize}
 	\item amino acids polymerize in a specific sequence to a chain
-	\item the repeating $N,C_\alpha,C$-pattern is called the protein's backbone
+	\item the repeating $N,C_\alpha,C'$-pattern is called the protein's backbone
 \end{itemize}
 
 \end{frame}
@@ -93,7 +93,7 @@ spatial arrangement of multiple folded proteins and the nature of their interact
 	\item DNA polymerase
 	\item ion channels
 \end{itemize}
-Understanding how proteins interact enables drug design.
+Understanding how proteins interact enables drug design.	
 \end{block}
 \end{frame}
 
@@ -125,7 +125,7 @@ Understanding how proteins interact enables drug design.
 
 \begin{frame}
 \frametitle{Different Approaches}
-The problem can be casted as a minimization problem: $\text{argmin}_{X} U(X)$. One can differentiate between several approaches.
+The problem can be cast as a minimization problem: $\text{argmin}_{X} U(X)$. One can differentiate between several approaches.
 \begin{block}{Classes of Potential Functions}
 \begin{itemize}
 	\item \textbf{Force fields:} Typically, the potential $U$ is a sum over bond, angle, dihedral angle, electrostatic and van der Waals energies.
@@ -196,7 +196,7 @@ leads to the following interpretation:
 \begin{itemize}
 	\item<2-> Speed.
 	\item<3-> All models are simply fitted mathematical functions $\rightarrow$ treating $C,C_\alpha,O,N,\dots$ as different elements might account for other physical properties to some extent.
-	\item<4-> It works to a certain extent, i.e. $\nabla_X U(X)\approx 0$ if $X$ describes the initial configuration which should be an equilibrium state.
+	\item<4-> It works to a certain extent, i.e. $\nabla_X U(X)\approx 0$ if $X$ describes the initial configuration which should be a metastable state.
 \end{itemize}
 
 \end{columns}
@@ -208,12 +208,12 @@ leads to the following interpretation:
 
 \begin{frame}
 \frametitle{Finding Optimal Parameters}
-Observe that ``$M$ is in equilibrium'' $\Leftrightarrow \nabla_X U_{A,B}(X_M,M)=0$.
+Observe that ``$M$ is in a metastable state'' $\Leftrightarrow \nabla_X U_{A,B}(X_M,M)=0$.
 Thus, it is natural to choose $A,B \in\mathbb (R^+)^{n\times n}$, where $n$ is the number of different substances one wants to differentiate between, as
 
 $$\underset{A,B}{\operatorname{argmin}} \sum_{M^i\in\text{training set}}\|\nabla_X U_{A,B}(X_{M^i},M^i)\|.$$
 
-However, this is an overdetermined system $\rightarrow$ fix $A_{11} = \textit{const}$ and express all other parameters in terms of $A_{11}$, i.e.: $\tilde A_{ij} = A_{11}A_{ij}$, $\tilde B_{ij} = A_{11}B_{ij}$.
+However, this is an homogenous system $\rightarrow$ fix $A_{11} = \textit{const}$ and express all other parameters in terms of $A_{11}$, i.e.: $\tilde A_{ij} = A_{11}A_{ij}$, $\tilde B_{ij} = A_{11}B_{ij}$.
 
 \end{frame}
 
